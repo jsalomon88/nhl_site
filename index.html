@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NHL Analytics — Joel Salomon</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #080808;
+      --surface: #0f0f0f;
+      --border: #1a1a1a;
+      --border-mid: #252525;
+      --text: #e8e8e8;
+      --text-sec: #5a5a5a;
+      --text-mid: #999;
+      --accent: #4ade80;
+      --accent-dim: rgba(74,222,128,0.1);
+      --red: #f87171;
+      --red-dim: rgba(248,113,113,0.1);
+      --serif: 'Instrument Serif', Georgia, serif;
+      --sans: 'Inter', system-ui, sans-serif;
+      --ease: cubic-bezier(0.16,1,0.3,1);
+    }
+
+    html { font-size: 16px; scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    /* ── Header ────────────────────────────────────── */
+    header {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(8,8,8,0.96);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      height: 56px;
+      padding: 0 40px;
+      display: flex; align-items: center; gap: 0;
+    }
+
+    .logo {
+      font-family: var(--serif);
+      font-size: 1.1rem;
+      color: var(--text);
+      margin-right: 48px;
+      letter-spacing: -0.01em;
+    }
+    .logo em { font-style: italic; color: var(--text-mid); }
+
+    .tab-bar { display: flex; height: 100%; }
+    .tab {
+      background: none; border: none;
+      border-bottom: 1px solid transparent;
+      color: var(--text-sec);
+      font-family: var(--sans); font-size: 0.7rem;
+      font-weight: 500; letter-spacing: 0.09em;
+      text-transform: uppercase;
+      padding: 0 16px; height: 100%;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .tab:hover { color: var(--text-mid); }
+    .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+    .header-right {
+      margin-left: auto;
+      font-size: 0.68rem;
+      color: var(--text-sec);
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Pages ─────────────────────────────────────── */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── Filter bar ────────────────────────────────── */
+    .filter-bar {
+      border-bottom: 1px solid var(--border);
+      padding: 14px 40px;
+      display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+    }
+
+    .filter-label {
+      font-size: 0.67rem; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--text-sec);
+    }
+
+    input[type="text"], select {
+      background: transparent;
+      border: 1px solid var(--border-mid);
+      border-radius: 3px;
+      padding: 6px 10px;
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 0.78rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="text"]::placeholder { color: var(--text-sec); }
+    input[type="text"]:focus,
+    select:focus { border-color: var(--accent); }
+    input[type="text"] { width: 200px; }
+    select { cursor: pointer; }
+    select option { background: #111; }
+
+    /* ── Table ─────────────────────────────────────── */
+    .table-wrap { padding: 0 40px 48px; overflow-x: auto; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.78rem; margin-top: 20px; }
+
+    thead th {
+      text-align: left; padding: 6px 10px;
+      font-size: 0.63rem; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--text-sec);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap; cursor: pointer; user-select: none;
+    }
+    thead th:hover { color: var(--text-mid); }
+    thead th.sort-asc::after { content: ' ↑'; color: var(--accent); }
+    thead th.sort-desc::after { content: ' ↓'; color: var(--accent); }
+
+    tbody td {
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    tbody tr:hover td { background: var(--surface); }
+
+    .name-cell { font-weight: 500; }
+    .dim { color: var(--text-mid); }
+    .pos-badge {
+      font-size: 0.6rem; font-weight: 600;
+      letter-spacing: 0.08em;
+      color: var(--text-sec);
+    }
+    .team-tag {
+      font-size: 0.63rem; font-weight: 600;
+      letter-spacing: 0.06em;
+      color: var(--text-sec);
+      padding: 1px 5px;
+      border: 1px solid var(--border-mid);
+      border-radius: 2px;
+    }
+    .team-tag.TOR { color: var(--accent); border-color: rgba(74,222,128,0.3); }
+    .pts-cell { font-weight: 600; color: var(--text); }
+    .hi { color: var(--accent); }
+    .lo { color: var(--red); }
+
+    /* Inline bar */
+    .bar-cell { display: flex; align-items: center; gap: 7px; }
+    .bar { flex: 0 0 40px; height: 2px; background: var(--border-mid); border-radius: 1px; }
+    .bar-fill { height: 100%; border-radius: 1px; background: var(--accent); opacity: 0.7; }
+
+    /* ── Spotlight ──────────────────────────────────── */
+    .spotlight-wrap { padding: 32px 40px; }
+    .spotlight-intro {
+      margin-bottom: 32px;
+    }
+    .spotlight-intro h2 {
+      font-family: var(--serif);
+      font-size: 2rem;
+      font-weight: 400;
+      letter-spacing: -0.01em;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .spotlight-intro h2 em { font-style: italic; color: var(--text-mid); }
+    .spotlight-intro p { font-size: 0.8rem; color: var(--text-sec); }
+
+    .player-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      gap: 1px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .player-card {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+    }
+    .player-card:last-child { border-right: none; }
+    .pc-header {
+      padding: 20px 24px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .pc-name {
+      font-family: var(--serif);
+      font-size: 1.4rem;
+      font-weight: 400;
+      letter-spacing: -0.01em;
+      line-height: 1.1;
+      margin-bottom: 3px;
+    }
+    .pc-name em { font-style: italic; color: var(--text-mid); }
+    .pc-sub {
+      font-size: 0.67rem; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--text-sec);
+    }
+    .pc-thead {
+      display: grid;
+      grid-template-columns: 64px repeat(6, 1fr);
+      padding: 6px 24px;
+      font-size: 0.6rem; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--text-sec);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .pc-thead span { text-align: right; }
+    .pc-thead span:first-child { text-align: left; }
+    .pc-row {
+      display: grid;
+      grid-template-columns: 64px repeat(6, 1fr);
+      padding: 8px 24px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.77rem;
+      align-items: center;
+      transition: background 0.1s;
+    }
+    .pc-row:last-child { border-bottom: none; }
+    .pc-row:hover { background: rgba(255,255,255,0.02); }
+    .pc-season { color: var(--text-mid); font-size: 0.72rem; }
+    .pc-stat { text-align: right; font-variant-numeric: tabular-nums; }
+    .pc-stat.pts { font-weight: 600; color: var(--accent); }
+
+    /* ── Teams ───────────────────────────────────────── */
+    .teams-wrap {
+      padding: 32px 40px;
+      display: flex; flex-direction: column; gap: 24px;
+    }
+    .teams-title {
+      font-family: var(--serif);
+      font-size: 1.8rem; font-weight: 400;
+      letter-spacing: -0.01em;
+    }
+    .teams-title em { font-style: italic; color: var(--text-mid); }
+    .season-row { display: flex; align-items: center; gap: 14px; }
+
+    /* ── Page hero labels ────────────────────────────── */
+    .page-hero {
+      padding: 40px 40px 0;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 20px;
+      margin-bottom: 0;
+    }
+    .page-hero h1 {
+      font-family: var(--serif);
+      font-size: 2.2rem; font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin-bottom: 6px;
+    }
+    .page-hero h1 em { font-style: italic; color: var(--text-mid); }
+    .page-hero p { font-size: 0.78rem; color: var(--text-sec); }
+
+    /* ── Responsive ─────────────────────────────────── */
+    @media (max-width: 640px) {
+      header { padding: 0 20px; }
+      .filter-bar, .table-wrap, .spotlight-wrap, .teams-wrap { padding-left: 16px; padding-right: 16px; }
+      .page-hero { padding: 24px 16px 16px; }
+      input[type="text"] { width: 150px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="logo">NHL <em>Analytics</em></span>
+  <div class="tab-bar">
+    <button class="tab active" data-tab="leaderboard">Leaderboard</button>
+    <button class="tab" data-tab="leafs">Leafs</button>
+    <button class="tab" data-tab="spotlight">Spotlight</button>
+    <button class="tab" data-tab="teams">Teams</button>
+  </div>
+  <span class="header-right" id="header-meta"></span>
+</header>
+
+<!-- ── LEADERBOARD ──────────────────────────────────── -->
+<div class="page active" id="page-leaderboard">
+  <div class="page-hero">
+    <h1>Player <em>Leaderboard</em></h1>
+    <p>Individual skater stats · MoneyPuck · All situations</p>
+  </div>
+  <div class="filter-bar">
+    <input type="text" id="lb-search" placeholder="Search player…" />
+    <span class="filter-label">Season</span>
+    <select id="lb-season"></select>
+    <span class="filter-label">Pos</span>
+    <select id="lb-pos">
+      <option value="">All</option>
+      <option value="C">C</option>
+      <option value="L">LW</option>
+      <option value="R">RW</option>
+      <option value="D">D</option>
+    </select>
+    <span class="filter-label">Min GP</span>
+    <select id="lb-mingp">
+      <option value="1">1+</option>
+      <option value="10">10+</option>
+      <option value="20" selected>20+</option>
+      <option value="40">40+</option>
+    </select>
+  </div>
+  <div class="table-wrap">
+    <table id="lb-table">
+      <thead><tr>
+        <th data-col="rank">#</th>
+        <th data-col="name">Player</th>
+        <th data-col="team">Team</th>
+        <th data-col="position">Pos</th>
+        <th data-col="games_played">GP</th>
+        <th data-col="goals">G</th>
+        <th data-col="primary_assists">A1</th>
+        <th data-col="secondary_assists">A2</th>
+        <th data-col="points" class="sort-desc">PTS</th>
+        <th data-col="shots_on_goal">SOG</th>
+        <th data-col="shooting_pct">SH%</th>
+        <th data-col="xgoals">xG</th>
+        <th data-col="goals_above_expected">G−xG</th>
+        <th data-col="points_per_60">P/60</th>
+        <th data-col="corsi_pct">CF%</th>
+        <th data-col="xgf_pct">xGF%</th>
+        <th data-col="icetime_min_per_game">TOI/G</th>
+      </tr></thead>
+      <tbody id="lb-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── LEAFS ────────────────────────────────────────── -->
+<div class="page" id="page-leafs">
+  <div class="page-hero">
+    <h1>Toronto <em>Maple Leafs</em></h1>
+    <p>All skater seasons · sortable by any column</p>
+  </div>
+  <div class="filter-bar">
+    <input type="text" id="leafs-search" placeholder="Search player…" />
+    <span class="filter-label">Season</span>
+    <select id="leafs-season"><option value="">All seasons</option></select>
+    <span class="filter-label">Pos</span>
+    <select id="leafs-pos">
+      <option value="">All</option>
+      <option value="C">C</option>
+      <option value="L">LW</option>
+      <option value="R">RW</option>
+      <option value="D">D</option>
+    </select>
+  </div>
+  <div class="table-wrap">
+    <table id="leafs-table">
+      <thead><tr>
+        <th data-col="season_label">Season</th>
+        <th data-col="name">Player</th>
+        <th data-col="position">Pos</th>
+        <th data-col="games_played">GP</th>
+        <th data-col="goals">G</th>
+        <th data-col="primary_assists">A1</th>
+        <th data-col="secondary_assists">A2</th>
+        <th data-col="points" class="sort-desc">PTS</th>
+        <th data-col="points_per_60">P/60</th>
+        <th data-col="xgoals">xG</th>
+        <th data-col="goals_above_expected">G−xG</th>
+        <th data-col="shooting_pct">SH%</th>
+        <th data-col="corsi_pct">CF%</th>
+        <th data-col="xgf_pct">xGF%</th>
+        <th data-col="icetime_min_per_game">TOI/G</th>
+        <th data-col="game_score">GS</th>
+      </tr></thead>
+      <tbody id="leafs-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── SPOTLIGHT ─────────────────────────────────────── -->
+<div class="page" id="page-spotlight">
+  <div class="spotlight-wrap">
+    <div class="spotlight-intro">
+      <h2>Player <em>Spotlight</em></h2>
+      <p>Season-by-season career breakdown for key Leafs players</p>
+    </div>
+    <div class="player-grid" id="spotlight-grid"></div>
+  </div>
+</div>
+
+<!-- ── TEAMS ──────────────────────────────────────────── -->
+<div class="page" id="page-teams">
+  <div class="teams-wrap">
+    <h2 class="teams-title">Team <em>Stats</em></h2>
+    <div class="season-row">
+      <span class="filter-label">Season</span>
+      <select id="teams-season"></select>
+    </div>
+    <div class="table-wrap" style="padding:0;overflow-x:auto;">
+      <table id="teams-table">
+        <thead><tr>
+          <th data-col="team">Team</th>
+          <th data-col="skaters_used">Skaters</th>
+          <th data-col="team_goals" class="sort-desc">GF</th>
+          <th data-col="team_primary_assists">A1</th>
+          <th data-col="team_points">PTS</th>
+          <th data-col="team_xgoals">xGF</th>
+          <th data-col="team_goals_above_expected">G−xG</th>
+          <th data-col="avg_corsi_pct">CF%</th>
+          <th data-col="avg_xgf_pct">xGF%</th>
+          <th data-col="avg_game_score">Avg GS</th>
+        </tr></thead>
+        <tbody id="teams-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+let playerStats = [], leafsPlayers = [], spotlightPlayers = [], teamStats = [];
+let lbSort = { col: 'points', dir: 'desc' };
+let leafsSort = { col: 'points', dir: 'desc' };
+let teamsSort = { col: 'team_goals', dir: 'desc' };
+
+async function loadData() {
+  const base = './data/';
+  [playerStats, leafsPlayers, spotlightPlayers, teamStats] = await Promise.all([
+    fetch(base + 'player_season_stats.json').then(r => r.json()),
+    fetch(base + 'leafs_players.json').then(r => r.json()),
+    fetch(base + 'spotlight_players.json').then(r => r.json()),
+    fetch(base + 'team_season_stats.json').then(r => r.json()),
+  ]);
+  playerStats = playerStats.map(coerce);
+  leafsPlayers = leafsPlayers.map(coerce);
+  spotlightPlayers = spotlightPlayers.map(coerce);
+  teamStats = teamStats.map(coerce);
+
+  populateFilters();
+  renderLeaderboard();
+  renderLeafs();
+  renderSpotlight();
+  renderTeams();
+
+  const seasons = [...new Set(playerStats.map(r => r.season))];
+  document.getElementById('header-meta').textContent =
+    `${playerStats.length.toLocaleString()} player-seasons · ${seasons.length} seasons`;
+}
+
+function coerce(row) {
+  const ints = ['season','player_id','games_played','goals','primary_assists','secondary_assists',
+    'points','shots_on_goal','shot_attempts','hd_shots','hd_goals','hits','takeaways',
+    'giveaways','penalty_minutes','skaters_used','team_goals','team_primary_assists','team_points'];
+  const floats = ['icetime_min','icetime_min_per_game','shooting_pct','xgoals','xgoals_adj',
+    'goals_above_expected','goals_per_60','points_per_60','hd_xgoals','corsi_pct','fenwick_pct',
+    'xgf_pct','game_score','team_xgoals','team_goals_above_expected','avg_corsi_pct','avg_xgf_pct','avg_game_score'];
+  const out = { ...row };
+  ints.forEach(k => { if (k in out) out[k] = parseInt(out[k]) || 0; });
+  floats.forEach(k => { if (k in out) out[k] = parseFloat(out[k]) || 0; });
+  return out;
+}
+
+function populateFilters() {
+  const seasons = [...new Set(playerStats.map(r => r.season))].sort((a,b) => b-a);
+
+  const lbSel = document.getElementById('lb-season');
+  lbSel.innerHTML = seasons.map(s => `<option value="${s}">${fmtSeason(s)}</option>`).join('');
+  lbSel.value = seasons[0];
+
+  const leafsSel = document.getElementById('leafs-season');
+  leafsSel.innerHTML = `<option value="">All seasons</option>` +
+    seasons.map(s => `<option value="${s}">${fmtSeason(s)}</option>`).join('');
+
+  const teamsSel = document.getElementById('teams-season');
+  teamsSel.innerHTML = seasons.map(s => `<option value="${s}">${fmtSeason(s)}</option>`).join('');
+  teamsSel.value = seasons[0];
+}
+
+function fmtSeason(s) {
+  const y = String(s);
+  return `${y.slice(0,4)}-${y.slice(6)}`;
+}
+
+function n(v, d=0) {
+  if (v == null || isNaN(v)) return '<span class="dim">—</span>';
+  return d > 0 ? Number(v).toFixed(d) : String(Math.round(v));
+}
+
+function pct(v) {
+  if (v == null || isNaN(v)) return '<span class="dim">—</span>';
+  return Number(v).toFixed(1) + '%';
+}
+
+function gaxg(v) {
+  if (v == null || isNaN(v)) return '<span class="dim">—</span>';
+  const s = Number(v).toFixed(1);
+  const cls = v > 3 ? 'hi' : v < -3 ? 'lo' : '';
+  return `<span class="${cls}">${v > 0 ? '+' : ''}${s}</span>`;
+}
+
+// ── Leaderboard ───────────────────────────────────────
+function renderLeaderboard() {
+  const season = parseInt(document.getElementById('lb-season').value);
+  const search = document.getElementById('lb-search').value.toLowerCase();
+  const pos = document.getElementById('lb-pos').value;
+  const minGp = parseInt(document.getElementById('lb-mingp').value);
+
+  let rows = playerStats.filter(r =>
+    r.season === season &&
+    r.games_played >= minGp &&
+    (!pos || r.position === pos) &&
+    (!search || r.name.toLowerCase().includes(search))
+  );
+  rows = sortRows(rows, lbSort);
+
+  const maxPts = Math.max(...rows.map(r => r.points), 1);
+  const maxXg = Math.max(...rows.map(r => r.xgoals), 1);
+
+  document.getElementById('lb-body').innerHTML = rows.map((r, i) => `<tr>
+    <td class="dim">${i+1}</td>
+    <td class="name-cell">${r.name}</td>
+    <td><span class="team-tag ${r.team}">${r.team}</span></td>
+    <td class="pos-badge">${r.position}</td>
+    <td class="dim">${n(r.games_played)}</td>
+    <td>${n(r.goals)}</td>
+    <td class="dim">${n(r.primary_assists)}</td>
+    <td class="dim">${n(r.secondary_assists)}</td>
+    <td>
+      <div class="bar-cell">
+        <span class="pts-cell">${n(r.points)}</span>
+        <div class="bar"><div class="bar-fill" style="width:${(r.points/maxPts*100).toFixed(1)}%"></div></div>
+      </div>
+    </td>
+    <td class="dim">${n(r.shots_on_goal)}</td>
+    <td class="${r.shooting_pct >= 15 ? 'hi' : r.shooting_pct < 7 && r.shots_on_goal > 20 ? 'lo' : 'dim'}">${r.shooting_pct.toFixed(1)}%</td>
+    <td>
+      <div class="bar-cell">
+        <span>${n(r.xgoals, 1)}</span>
+        <div class="bar"><div class="bar-fill" style="width:${(r.xgoals/maxXg*100).toFixed(1)}%;opacity:0.5"></div></div>
+      </div>
+    </td>
+    <td>${gaxg(r.goals_above_expected)}</td>
+    <td class="dim">${n(r.points_per_60, 2)}</td>
+    <td class="${r.corsi_pct > 52 ? 'hi' : r.corsi_pct < 46 ? 'lo' : 'dim'}">${r.corsi_pct.toFixed(1)}%</td>
+    <td class="${r.xgf_pct > 52 ? 'hi' : r.xgf_pct < 46 ? 'lo' : 'dim'}">${r.xgf_pct.toFixed(1)}%</td>
+    <td class="dim">${n(r.icetime_min_per_game, 1)}</td>
+  </tr>`).join('');
+}
+
+// ── Leafs ─────────────────────────────────────────────
+function renderLeafs() {
+  const search = document.getElementById('leafs-search').value.toLowerCase();
+  const season = document.getElementById('leafs-season').value;
+  const pos = document.getElementById('leafs-pos').value;
+
+  let rows = leafsPlayers.filter(r =>
+    (!season || r.season === parseInt(season)) &&
+    (!pos || r.position === pos) &&
+    (!search || r.name.toLowerCase().includes(search))
+  );
+  rows = sortRows(rows, leafsSort);
+
+  document.getElementById('leafs-body').innerHTML = rows.map(r => `<tr>
+    <td class="dim">${r.season_label}</td>
+    <td class="name-cell">${r.name}</td>
+    <td class="pos-badge">${r.position}</td>
+    <td class="dim">${n(r.games_played)}</td>
+    <td>${n(r.goals)}</td>
+    <td class="dim">${n(r.primary_assists)}</td>
+    <td class="dim">${n(r.secondary_assists)}</td>
+    <td class="pts-cell">${n(r.points)}</td>
+    <td class="dim">${n(r.points_per_60, 2)}</td>
+    <td>${n(r.xgoals, 1)}</td>
+    <td>${gaxg(r.goals_above_expected)}</td>
+    <td class="dim">${r.shooting_pct.toFixed(1)}%</td>
+    <td class="${r.corsi_pct > 52 ? 'hi' : r.corsi_pct < 46 ? 'lo' : 'dim'}">${r.corsi_pct.toFixed(1)}%</td>
+    <td class="${r.xgf_pct > 52 ? 'hi' : r.xgf_pct < 46 ? 'lo' : 'dim'}">${r.xgf_pct.toFixed(1)}%</td>
+    <td class="dim">${n(r.icetime_min_per_game, 1)}</td>
+    <td class="dim">${n(r.game_score, 2)}</td>
+  </tr>`).join('');
+}
+
+// ── Spotlight ──────────────────────────────────────────
+function renderSpotlight() {
+  const players = [...new Set(spotlightPlayers.map(r => r.name))].sort();
+  document.getElementById('spotlight-grid').innerHTML = players.map(name => {
+    const seasons = spotlightPlayers.filter(r => r.name === name).sort((a,b) => a.season - b.season);
+    const pos = seasons[0]?.position || '';
+    const nameParts = name.split(' ');
+    const dispName = nameParts.length >= 2
+      ? `${nameParts[0]} <em>${nameParts.slice(1).join(' ')}</em>`
+      : name;
+
+    const rows = seasons.map(r => `
+      <div class="pc-row">
+        <span class="pc-season">${r.season_label}</span>
+        <span class="pc-stat">${n(r.games_played)}</span>
+        <span class="pc-stat">${n(r.goals)}</span>
+        <span class="pc-stat">${n(r.primary_assists)}</span>
+        <span class="pc-stat pts">${n(r.points)}</span>
+        <span class="pc-stat">${n(r.xgoals, 1)}</span>
+        <span class="pc-stat ${r.goals_above_expected > 2 ? 'hi' : r.goals_above_expected < -2 ? 'lo' : 'dim'}">${r.goals_above_expected > 0 ? '+' : ''}${n(r.goals_above_expected, 1)}</span>
+      </div>`).join('');
+
+    return `<div class="player-card">
+      <div class="pc-header">
+        <div class="pc-name">${dispName}</div>
+        <div class="pc-sub">${pos} · Toronto Maple Leafs</div>
+      </div>
+      <div class="pc-thead">
+        <span>Season</span><span>GP</span><span>G</span><span>A1</span><span>PTS</span><span>xG</span><span>G−xG</span>
+      </div>
+      ${rows}
+    </div>`;
+  }).join('');
+}
+
+// ── Teams ──────────────────────────────────────────────
+function renderTeams() {
+  const season = parseInt(document.getElementById('teams-season').value);
+  let rows = teamStats.filter(r => r.season === season);
+  rows = sortRows(rows, teamsSort);
+  const maxG = Math.max(...rows.map(r => r.team_goals), 1);
+
+  document.getElementById('teams-body').innerHTML = rows.map(r => `<tr>
+    <td><span class="team-tag ${r.team}">${r.team}</span></td>
+    <td class="dim">${n(r.skaters_used)}</td>
+    <td>
+      <div class="bar-cell">
+        <span>${n(r.team_goals)}</span>
+        <div class="bar"><div class="bar-fill" style="width:${(r.team_goals/maxG*100).toFixed(1)}%"></div></div>
+      </div>
+    </td>
+    <td class="dim">${n(r.team_primary_assists)}</td>
+    <td>${n(r.team_points)}</td>
+    <td>${n(r.team_xgoals, 1)}</td>
+    <td>${gaxg(r.team_goals_above_expected)}</td>
+    <td class="${r.avg_corsi_pct > 52 ? 'hi' : r.avg_corsi_pct < 48 ? 'lo' : 'dim'}">${r.avg_corsi_pct.toFixed(1)}%</td>
+    <td class="${r.avg_xgf_pct > 52 ? 'hi' : r.avg_xgf_pct < 48 ? 'lo' : 'dim'}">${r.avg_xgf_pct.toFixed(1)}%</td>
+    <td class="dim">${n(r.avg_game_score, 2)}</td>
+  </tr>`).join('');
+}
+
+// ── Sort ───────────────────────────────────────────────
+function sortRows(rows, state) {
+  return [...rows].sort((a,b) => {
+    const av = a[state.col], bv = b[state.col];
+    if (typeof av === 'string') return state.dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+    return state.dir === 'asc' ? (av - bv) : (bv - av);
+  });
+}
+
+function bindSort(tableId, sortState, renderFn) {
+  document.getElementById(tableId).querySelectorAll('th[data-col]').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.col;
+      sortState.dir = sortState.col === col ? (sortState.dir === 'asc' ? 'desc' : 'asc') : 'desc';
+      sortState.col = col;
+      document.getElementById(tableId).querySelectorAll('th').forEach(t => t.classList.remove('sort-asc','sort-desc'));
+      th.classList.add(sortState.dir === 'asc' ? 'sort-asc' : 'sort-desc');
+      renderFn();
+    });
+  });
+}
+
+// ── Events ─────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('page-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+['lb-search','lb-season','lb-pos','lb-mingp'].forEach(id => {
+  document.getElementById(id).addEventListener(id.includes('search') ? 'input' : 'change', renderLeaderboard);
+});
+['leafs-search','leafs-season','leafs-pos'].forEach(id => {
+  document.getElementById(id).addEventListener(id.includes('search') ? 'input' : 'change', renderLeafs);
+});
+document.getElementById('teams-season').addEventListener('change', renderTeams);
+
+loadData().then(() => {
+  bindSort('lb-table', lbSort, renderLeaderboard);
+  bindSort('leafs-table', leafsSort, renderLeafs);
+  bindSort('teams-table', teamsSort, renderTeams);
+});
+</script>
+</body>
+</html>
