@@ -9,6 +9,8 @@
   <link rel="icon" href="/apple-touch-icon.png" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="manifest" href="/manifest.json" />
+  <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-hexbin@0.2.2/build/d3-hexbin.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -271,10 +273,28 @@
     .page-hero h1 em { font-style: italic; color: var(--text-mid); }
     .page-hero p { font-size: 0.78rem; color: var(--text-sec); }
 
+    /* ── Heatmap ─────────────────────────────────────── */
+    .viz-wrap { padding: 24px 40px 48px; display: flex; gap: 32px; align-items: flex-start; flex-wrap: wrap; }
+    .hm-container { flex: 0 0 auto; width: 100%; max-width: 380px; }
+    .hm-container svg { display: block; width: 100%; }
+    .legend { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+    .legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.7rem; color: var(--text-sec); }
+
+    /* ── Compare ─────────────────────────────────────── */
+    .cmp-wrap { padding: 24px 40px 48px; display: flex; gap: 40px; flex-wrap: wrap; align-items: flex-start; }
+    #cmp-radar svg, #tr-chart svg { display: block; }
+    .cmp-stat-table { width: 100%; border-collapse: collapse; font-size: 0.76rem; }
+    .cmp-stat-table th { text-align: left; padding: 5px 10px; font-size: 0.62rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-sec); border-bottom: 1px solid var(--border); white-space: nowrap; }
+    .cmp-stat-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .cmp-stat-table td:first-child { color: var(--text-mid); }
+
+    /* ── Trends ──────────────────────────────────────── */
+    .tr-wrap { padding: 24px 40px 48px; }
+
     /* ── Responsive ─────────────────────────────────── */
     @media (max-width: 640px) {
       header { padding: 0 20px; }
-      .filter-bar, .table-wrap, .spotlight-wrap, .teams-wrap { padding-left: 16px; padding-right: 16px; }
+      .filter-bar, .table-wrap, .spotlight-wrap, .teams-wrap, .viz-wrap, .cmp-wrap, .tr-wrap { padding-left: 16px; padding-right: 16px; }
       .page-hero { padding: 24px 16px 16px; }
       input[type="text"] { width: 150px; }
     }
@@ -289,6 +309,9 @@
     <button class="tab" data-tab="leafs">Leafs</button>
     <button class="tab" data-tab="spotlight">Spotlight</button>
     <button class="tab" data-tab="teams">Teams</button>
+    <button class="tab" data-tab="heatmap">Heatmap</button>
+    <button class="tab" data-tab="compare">Compare</button>
+    <button class="tab" data-tab="trends">Trends</button>
   </div>
   <span class="header-right" id="header-meta"></span>
 </header>
@@ -428,6 +451,96 @@
   </div>
 </div>
 
+<!-- ── HEATMAP ──────────────────────────────────────── -->
+<div class="page" id="page-heatmap">
+  <div class="page-hero">
+    <h1>Shot <em>Heatmap</em></h1>
+    <p>Shot locations &amp; expected goals · MoneyPuck · offensive zone</p>
+  </div>
+  <div class="filter-bar">
+    <span class="filter-label">Player</span>
+    <select id="hm-player" style="min-width:200px"></select>
+    <span class="filter-label">Season</span>
+    <select id="hm-season"></select>
+  </div>
+  <div class="viz-wrap">
+    <div class="hm-container" id="hm-svg-container"></div>
+    <div>
+      <p id="hm-stats" style="font-size:0.78rem;color:var(--text-sec);margin-bottom:20px;line-height:1.8;"></p>
+      <div class="legend">
+        <div class="legend-item">
+          <div style="width:60px;height:8px;background:linear-gradient(to right,rgba(74,222,128,0.08),#4ade80);border-radius:2px;flex-shrink:0;"></div>
+          <span>Shot density</span>
+        </div>
+        <div class="legend-item">
+          <div style="width:10px;height:10px;border-radius:50%;background:#fff;border:1.5px solid #4ade80;flex-shrink:0;"></div>
+          <span>Goal scored</span>
+        </div>
+        <div class="legend-item" style="margin-top:4px;">
+          <span style="color:var(--border-mid)">Red line = goal line &nbsp;·&nbsp; Blue = blue line</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── COMPARE ────────────────────────────────────── -->
+<div class="page" id="page-compare">
+  <div class="page-hero">
+    <h1>Player <em>Compare</em></h1>
+    <p>Head-to-head across 6 key metrics · select up to 3 players</p>
+  </div>
+  <div class="filter-bar" style="gap:20px;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#4ade80;flex-shrink:0;"></span>
+      <select id="cmp-p1" style="min-width:170px"><option value="">— Player 1 —</option></select>
+      <select id="cmp-s1" style="min-width:90px"></select>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#60a5fa;flex-shrink:0;"></span>
+      <select id="cmp-p2" style="min-width:170px"><option value="">— Player 2 —</option></select>
+      <select id="cmp-s2" style="min-width:90px"></select>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#f87171;flex-shrink:0;"></span>
+      <select id="cmp-p3" style="min-width:170px"><option value="">— Player 3 (optional) —</option></select>
+      <select id="cmp-s3" style="min-width:90px"></select>
+    </div>
+  </div>
+  <div class="cmp-wrap">
+    <div id="cmp-radar"></div>
+    <div id="cmp-stats" style="min-width:240px;overflow-x:auto;"></div>
+  </div>
+</div>
+
+<!-- ── TRENDS ─────────────────────────────────────── -->
+<div class="page" id="page-trends">
+  <div class="page-hero">
+    <h1>Season <em>Trends</em></h1>
+    <p>Player stat progression across all seasons · search to compare multiple players</p>
+  </div>
+  <div class="filter-bar">
+    <input type="text" id="tr-player" placeholder="Search player…" style="width:200px" />
+    <span class="filter-label">Stat</span>
+    <select id="tr-stat">
+      <option value="points">Points</option>
+      <option value="goals">Goals</option>
+      <option value="primary_assists">Primary Assists</option>
+      <option value="points_per_60">Points / 60</option>
+      <option value="goals_per_60">Goals / 60</option>
+      <option value="xgoals">xG</option>
+      <option value="goals_above_expected">G − xG</option>
+      <option value="xgf_pct">xGF%</option>
+      <option value="corsi_pct">CF%</option>
+      <option value="shooting_pct">Shooting %</option>
+      <option value="icetime_min_per_game">TOI / Game</option>
+    </select>
+  </div>
+  <div class="tr-wrap">
+    <div id="tr-chart" style="width:100%;"></div>
+  </div>
+</div>
+
 <script>
 let playerStats = [], leafsPlayers = [], spotlightPlayers = [], teamStats = [];
 let lbSort = { col: 'points', dir: 'desc' };
@@ -452,6 +565,7 @@ async function loadData() {
   renderLeafs();
   renderSpotlight();
   renderTeams();
+  initCompare();
 
   const seasons = [...new Set(playerStats.map(r => r.season))];
   document.getElementById('header-meta').textContent =
@@ -697,6 +811,306 @@ loadData().then(() => {
   bindSort('leafs-table', leafsSort, renderLeafs);
   bindSort('teams-table', teamsSort, renderTeams);
 });
+
+// ── Tab switching (extend to load heatmap lazily) ──────
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    if (tab.dataset.tab === 'heatmap') loadHeatmapData();
+  });
+});
+
+// ── HEATMAP ───────────────────────────────────────────
+let heatmapData = null;
+const HM = { W: 380, H: 430, SCALE: 5, X0: 24, Y0: 42.5 };
+const hmX = x => (x - HM.X0) * HM.SCALE;
+const hmY = y => (y + HM.Y0) * HM.SCALE;
+
+async function loadHeatmapData() {
+  if (heatmapData) { renderHeatmap(); return; }
+  document.getElementById('hm-stats').textContent = 'Loading shot data…';
+  heatmapData = await fetch('./data/shots_heatmap.json').then(r => r.json());
+  const players = Object.keys(heatmapData).sort();
+  const sel = document.getElementById('hm-player');
+  sel.innerHTML = players.map(p => `<option value="${p}">${p}</option>`).join('');
+  const def = players.includes('Auston Matthews') ? 'Auston Matthews' : players[0];
+  sel.value = def;
+  populateHmSeason(def);
+  renderHeatmap();
+}
+
+function populateHmSeason(player) {
+  const data = heatmapData[player];
+  if (!data) return;
+  const seasons = Object.keys(data).sort((a,b) => b - a);
+  const sel = document.getElementById('hm-season');
+  sel.innerHTML = seasons.map(s => `<option value="${s}">${String(s).length === 4 ? s : fmtSeason(parseInt(s))}</option>`).join('');
+}
+
+function drawIceRink(svg) {
+  const g = svg.append('g');
+  g.append('rect').attr('x',0).attr('y',0).attr('width',HM.W).attr('height',HM.H)
+    .attr('fill','#0a0a0a').attr('stroke','#1f1f1f').attr('stroke-width',1.5).attr('rx',2);
+  // Blue line (left edge = x=25)
+  g.append('line').attr('x1',1).attr('x2',1).attr('y1',0).attr('y2',HM.H)
+    .attr('stroke','#334acc').attr('stroke-width',2.5).attr('opacity',0.7);
+  // Goal line at x=89
+  g.append('line').attr('x1',hmX(89)).attr('x2',hmX(89)).attr('y1',0).attr('y2',HM.H)
+    .attr('stroke','#c23b3b').attr('stroke-width',1.5).attr('opacity',0.7);
+  // Crease (semi-circle in front of goal)
+  const cx = hmX(89), cy = HM.H/2, r = 6*HM.SCALE;
+  g.append('path').attr('d',`M${cx} ${cy-r} A${r} ${r} 0 0 1 ${cx} ${cy+r}`)
+    .attr('fill','rgba(74,222,128,0.04)').attr('stroke','#2a5c3a').attr('stroke-width',1);
+  // Net
+  g.append('rect').attr('x',hmX(89)).attr('y',hmY(-3)).attr('width',6*HM.SCALE).attr('height',6*HM.SCALE)
+    .attr('fill','none').attr('stroke','#c23b3b').attr('stroke-width',1.5).attr('opacity',0.9);
+  // Face-off dots
+  [[69,22],[69,-22]].forEach(([x,y]) => {
+    g.append('circle').attr('cx',hmX(x)).attr('cy',hmY(y)).attr('r',1.5*HM.SCALE)
+      .attr('fill','none').attr('stroke','#7a2a2a').attr('stroke-width',1).attr('opacity',0.5);
+    g.append('circle').attr('cx',hmX(x)).attr('cy',hmY(y)).attr('r',0.3*HM.SCALE)
+      .attr('fill','#7a2a2a').attr('opacity',0.5);
+  });
+}
+
+function renderHeatmap() {
+  if (!heatmapData) return;
+  const player = document.getElementById('hm-player').value;
+  const season = document.getElementById('hm-season').value;
+  const shots = ((heatmapData[player] || {})[season] || [])
+    .map(([x,y,xg,goal]) => ({x,y,xg,goal}));
+
+  const goals = shots.filter(s=>s.goal).length;
+  const totalXg = shots.reduce((s,r)=>s+r.xg,0);
+  document.getElementById('hm-stats').innerHTML =
+    `<strong style="color:var(--text)">${shots.length}</strong> shots &nbsp;·&nbsp; <strong style="color:var(--accent)">${goals}</strong> goals &nbsp;·&nbsp; <strong>${totalXg.toFixed(1)}</strong> xG &nbsp;·&nbsp; ${shots.length>0?(goals/totalXg).toFixed(2):'—'} goals/xG`;
+
+  const container = document.getElementById('hm-svg-container');
+  container.innerHTML = '';
+  const svg = d3.select(container).append('svg')
+    .attr('viewBox',`0 0 ${HM.W} ${HM.H}`).attr('width','100%');
+  drawIceRink(svg);
+  if (!shots.length) return;
+
+  const hexbin = d3.hexbin().x(d=>hmX(d.x)).y(d=>hmY(d.y)).radius(13)
+    .extent([[0,0],[HM.W,HM.H]]);
+  const bins = hexbin(shots);
+  const maxCount = Math.max(...bins.map(b=>b.length),1);
+  const color = d3.scaleSequential([0,maxCount], d3.interpolate('rgba(74,222,128,0.05)','rgba(74,222,128,0.82)'));
+
+  svg.append('g').selectAll('path').data(bins).join('path')
+    .attr('d',hexbin.hexagon()).attr('transform',d=>`translate(${d.x},${d.y})`)
+    .attr('fill',d=>color(d.length)).attr('stroke','rgba(8,8,8,0.25)').attr('stroke-width',0.5);
+
+  // Goal dots on top
+  svg.append('g').selectAll('circle').data(shots.filter(s=>s.goal)).join('circle')
+    .attr('cx',d=>hmX(d.x)).attr('cy',d=>hmY(d.y)).attr('r',3.5)
+    .attr('fill','#fff').attr('opacity',0.9).attr('stroke','#4ade80').attr('stroke-width',1);
+}
+
+document.getElementById('hm-player').addEventListener('change', () => {
+  populateHmSeason(document.getElementById('hm-player').value);
+  renderHeatmap();
+});
+document.getElementById('hm-season').addEventListener('change', renderHeatmap);
+
+// ── COMPARE ───────────────────────────────────────────
+const RADAR_STATS = [
+  { key:'points_per_60', label:'P/60', min:0, max:4.5 },
+  { key:'goals_per_60',  label:'G/60', min:0, max:2 },
+  { key:'xgf_pct',       label:'xGF%', min:40, max:62 },
+  { key:'corsi_pct',     label:'CF%',  min:40, max:62 },
+  { key:'shooting_pct',  label:'SH%',  min:0, max:22 },
+  { key:'goals_above_expected', label:'G−xG', min:-8, max:18 },
+];
+const CMP_COLORS = ['#4ade80','#60a5fa','#f87171'];
+
+function initCompare() {
+  const allNames = [...new Set(playerStats.map(r=>r.name))].sort();
+  const opts = `<option value="">—</option>` + allNames.map(n=>`<option value="${n}">${n}</option>`).join('');
+  ['cmp-p1','cmp-p2','cmp-p3'].forEach(id => { document.getElementById(id).innerHTML = opts; });
+  // Default players
+  ['Auston Matthews','William Nylander','Mitch Marner'].forEach((name,i) => {
+    const sel = document.getElementById(`cmp-p${i+1}`);
+    if ([...sel.options].some(o=>o.value===name)) {
+      sel.value = name;
+      populateCmpSeason(i+1);
+    }
+  });
+  renderCompare();
+}
+
+function populateCmpSeason(idx) {
+  const name = document.getElementById(`cmp-p${idx}`).value;
+  const sel = document.getElementById(`cmp-s${idx}`);
+  if (!name) { sel.innerHTML = ''; return; }
+  const seasons = [...new Set(playerStats.filter(r=>r.name===name).map(r=>r.season))].sort((a,b)=>b-a);
+  sel.innerHTML = seasons.map(s=>`<option value="${s}">${fmtSeason(s)}</option>`).join('');
+}
+
+function renderCompare() {
+  const players = [1,2,3].map(i => {
+    const name = document.getElementById(`cmp-p${i}`).value;
+    const season = parseInt(document.getElementById(`cmp-s${i}`).value);
+    if (!name || !season) return null;
+    return playerStats.find(r => r.name===name && r.season===season) || null;
+  }).filter(Boolean);
+
+  const radarEl = document.getElementById('cmp-radar');
+  const statsEl = document.getElementById('cmp-stats');
+  radarEl.innerHTML = '';
+  statsEl.innerHTML = '';
+  if (!players.length) return;
+
+  const SIZE = 380, margin = 70, radius = (SIZE/2)-margin, cx=SIZE/2, cy=SIZE/2, N=RADAR_STATS.length;
+  const svg = d3.select(radarEl).append('svg').attr('width',SIZE).attr('height',SIZE);
+  const g = svg.append('g');
+
+  // Grid rings
+  [0.25,0.5,0.75,1].forEach(t => {
+    const pts = RADAR_STATS.map((_,i) => {
+      const a = (i/N)*2*Math.PI - Math.PI/2;
+      return [cx+Math.cos(a)*radius*t, cy+Math.sin(a)*radius*t];
+    });
+    g.append('polygon').attr('points',pts.map(p=>p.join(',')).join(' '))
+      .attr('fill','none').attr('stroke','#1a1a1a').attr('stroke-width',1);
+  });
+
+  // Axes + labels
+  RADAR_STATS.forEach((stat,i) => {
+    const a = (i/N)*2*Math.PI - Math.PI/2;
+    g.append('line').attr('x1',cx).attr('y1',cy)
+      .attr('x2',cx+Math.cos(a)*radius).attr('y2',cy+Math.sin(a)*radius)
+      .attr('stroke','#1a1a1a').attr('stroke-width',1);
+    const lx = cx+Math.cos(a)*(radius+26), ly = cy+Math.sin(a)*(radius+26);
+    g.append('text').attr('x',lx).attr('y',ly).attr('text-anchor','middle')
+      .attr('dominant-baseline','middle').attr('fill','#555').attr('font-size','11px')
+      .attr('font-family','Inter,sans-serif').text(stat.label);
+  });
+
+  // Player polygons
+  players.forEach((player,pi) => {
+    const vals = RADAR_STATS.map(s => {
+      const v = Math.min(Math.max(player[s.key]||0, s.min), s.max);
+      return (v - s.min) / (s.max - s.min);
+    });
+    const pts = vals.map((v,i) => {
+      const a = (i/N)*2*Math.PI - Math.PI/2;
+      return [cx+Math.cos(a)*radius*v, cy+Math.sin(a)*radius*v];
+    });
+    g.append('polygon').attr('points',pts.map(p=>p.join(',')).join(' '))
+      .attr('fill',CMP_COLORS[pi]).attr('fill-opacity',0.1)
+      .attr('stroke',CMP_COLORS[pi]).attr('stroke-width',2);
+    // Center dot
+    g.append('circle').attr('cx',cx).attr('cy',cy).attr('r',3).attr('fill',CMP_COLORS[pi]).attr('opacity',0.5);
+  });
+
+  // Stats table
+  const cols = ['Stat',...players.map(p=>`${p.name.split(' ').pop()} ${fmtSeason(p.season)}`)];
+  const rows = RADAR_STATS.map(s => {
+    const fmt = v => {
+      if (s.key.includes('pct')) return v.toFixed(1)+'%';
+      if (s.key.includes('per_60') || s.key === 'goals_per_60') return v.toFixed(2);
+      if (s.key === 'goals_above_expected') return (v>0?'+':'')+v.toFixed(1);
+      return v.toFixed(1);
+    };
+    return [s.label, ...players.map(p => fmt(p[s.key]||0))];
+  });
+  statsEl.innerHTML = `<table class="cmp-stat-table"><thead><tr>${cols.map((c,i)=>`<th style="${i>0?'text-align:right;color:'+CMP_COLORS[i-1]+';':''}">${c}</th>`).join('')}</tr></thead><tbody>${
+    rows.map(r=>`<tr>${r.map((v,i)=>`<td style="${i>0?'text-align:right;':''}">${v}</td>`).join('')}</tr>`).join('')
+  }</tbody></table>`;
+}
+
+[1,2,3].forEach(i => {
+  document.getElementById(`cmp-p${i}`).addEventListener('change', () => {
+    populateCmpSeason(i); renderCompare();
+  });
+  document.getElementById(`cmp-s${i}`).addEventListener('change', renderCompare);
+});
+
+// ── TRENDS ────────────────────────────────────────────
+const TR_PLACEHOLDER = '<p style="color:var(--text-sec);font-size:0.8rem;padding:16px 0;">Type a player name (2+ chars) to see their season trends.</p>';
+
+function renderTrends() {
+  const search = document.getElementById('tr-player').value.trim().toLowerCase();
+  const statKey = document.getElementById('tr-stat').value;
+  const statLabel = document.getElementById('tr-stat').selectedOptions[0].text;
+  const container = document.getElementById('tr-chart');
+
+  if (search.length < 2) { container.innerHTML = TR_PLACEHOLDER; return; }
+
+  const matchedNames = [...new Set(playerStats.filter(r=>r.name.toLowerCase().includes(search)).map(r=>r.name))].slice(0,5);
+  if (!matchedNames.length) { container.innerHTML = '<p style="color:var(--text-sec);font-size:0.8rem;padding:16px 0;">No players found.</p>'; return; }
+
+  const series = matchedNames.map((name,i) => ({
+    name, color: CMP_COLORS[i % CMP_COLORS.length],
+    pts: playerStats.filter(r=>r.name===name).sort((a,b)=>a.season-b.season)
+      .map(r=>({ s: r.season, v: r[statKey]||0, label: r.season_label }))
+  })).filter(s=>s.pts.length>0);
+
+  container.innerHTML = '';
+  const W = container.offsetWidth || 600;
+  const margin = {top:20,right:140,bottom:40,left:48};
+  const width = W - margin.left - margin.right;
+  const height = 300 - margin.top - margin.bottom;
+
+  const allSeasons = [...new Set(series.flatMap(s=>s.pts.map(p=>p.s)))].sort();
+  const allVals = series.flatMap(s=>s.pts.map(p=>p.v));
+  const yMin = Math.min(0, ...allVals) * 1.05;
+  const yMax = Math.max(...allVals) * 1.1 || 1;
+
+  const xScale = d3.scalePoint().domain(allSeasons).range([0,width]).padding(0.3);
+  const yScale = d3.scaleLinear().domain([yMin, yMax]).range([height,0]).nice();
+
+  const svg = d3.select(container).append('svg')
+    .attr('width', W).attr('height', height+margin.top+margin.bottom);
+  const g = svg.append('g').attr('transform',`translate(${margin.left},${margin.top})`);
+
+  // Grid
+  yScale.ticks(5).forEach(t => {
+    g.append('line').attr('x1',0).attr('x2',width).attr('y1',yScale(t)).attr('y2',yScale(t))
+      .attr('stroke','#161616').attr('stroke-width',1);
+    g.append('text').attr('x',-8).attr('y',yScale(t)).attr('text-anchor','end')
+      .attr('dominant-baseline','middle').attr('fill','#444').attr('font-size','11px')
+      .attr('font-family','Inter,sans-serif').text(t % 1 === 0 ? t : t.toFixed(1));
+  });
+
+  // X axis
+  allSeasons.forEach(s => {
+    const yr = String(s);
+    g.append('text').attr('x',xScale(s)).attr('y',height+28).attr('text-anchor','middle')
+      .attr('fill','#444').attr('font-size','11px').attr('font-family','Inter,sans-serif')
+      .text(`${yr.slice(2,4)}-${yr.slice(6)}`);
+  });
+
+  // Lines + dots
+  const line = d3.line().x(d=>xScale(d.s)).y(d=>yScale(d.v)).curve(d3.curveMonotoneX);
+  series.forEach((s,si) => {
+    g.append('path').datum(s.pts).attr('d',line).attr('fill','none')
+      .attr('stroke',s.color).attr('stroke-width',2).attr('opacity',0.85);
+    g.selectAll(null).data(s.pts).join('circle')
+      .attr('cx',d=>xScale(d.s)).attr('cy',d=>yScale(d.v)).attr('r',4)
+      .attr('fill',s.color).attr('stroke','#080808').attr('stroke-width',1.5).attr('opacity',0.95);
+  });
+
+  // Legend
+  series.forEach((s,i) => {
+    const lx = width+10, ly = i*22+4;
+    g.append('rect').attr('x',lx).attr('y',ly).attr('width',10).attr('height',10)
+      .attr('fill',s.color).attr('opacity',0.8).attr('rx',2);
+    g.append('text').attr('x',lx+15).attr('y',ly+6).attr('dominant-baseline','middle')
+      .attr('fill','#777').attr('font-size','11px').attr('font-family','Inter,sans-serif')
+      .text(s.name.split(' ').pop());
+  });
+
+  // Stat label
+  g.append('text').attr('x',-36).attr('y',height/2).attr('text-anchor','middle')
+    .attr('transform',`rotate(-90,-36,${height/2})`).attr('fill','#444').attr('font-size','11px')
+    .attr('font-family','Inter,sans-serif').text(statLabel);
+}
+
+document.getElementById('tr-player').addEventListener('input', renderTrends);
+document.getElementById('tr-stat').addEventListener('change', renderTrends);
+document.getElementById('tr-chart').innerHTML = TR_PLACEHOLDER;
 </script>
 </body>
 </html>
