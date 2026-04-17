@@ -99,6 +99,12 @@
       align-items: center;
       gap: 10px;
       margin-bottom: 20px;
+      position: sticky;
+      top: 56px;
+      z-index: 40;
+      background: var(--bg);
+      padding: 12px 0;
+      margin-top: -12px;
     }
 
     .filter-bar input[type="text"],
@@ -537,11 +543,11 @@
             <th data-col="assists">A</th>
             <th data-col="points" class="sort-desc">PTS</th>
             <th data-col="plus_minus">+/-</th>
-            <th data-col="shots">SOG</th>
+            <th data-col="shots_on_goal">SOG</th>
             <th data-col="shooting_pct">S%</th>
-            <th data-col="toi_per_game">TOI/G</th>
-            <th data-col="cf_pct">CF%</th>
-            <th data-col="xg_pct">xG%</th>
+            <th data-col="icetime_min_per_game">TOI/G</th>
+            <th data-col="corsi_pct">CF%</th>
+            <th data-col="xgf_pct">xG%</th>
           </tr>
         </thead>
         <tbody id="players-tbody"></tbody>
@@ -621,11 +627,12 @@ function fmtNum(v, dec = 0) {
   return n.toFixed(dec);
 }
 
-function fmtPct(v) {
+function fmtShotPct(v) {
+  // shooting_pct is already a percentage value like 15.8, not 0.158
   if (v === null || v === undefined || v === '') return '—';
   const n = parseFloat(v);
   if (isNaN(n)) return '—';
-  return (n * 100).toFixed(1) + '%';
+  return n.toFixed(1) + '%';
 }
 
 function fmtPlusMinus(v) {
@@ -636,11 +643,12 @@ function fmtPlusMinus(v) {
 }
 
 function fmtTOI(v) {
+  // icetime_min_per_game is decimal minutes, e.g. 23.05 = 23:03
   if (!v) return '—';
   const n = parseFloat(v);
   if (isNaN(n)) return '—';
-  const m = Math.floor(n / 60);
-  const s = Math.round(n % 60);
+  const m = Math.floor(n);
+  const s = Math.round((n - m) * 60);
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
@@ -749,7 +757,7 @@ function renderPlayers() {
   tbody.innerHTML = rows.map(r => {
     const isSelected = selectedPlayer && selectedPlayer.name === r.name && String(selectedPlayer.season) === String(r.season);
     const inCompare = compareList.some(c => c.name === r.name && String(c.season) === String(r.season));
-    const pmClass = num(r.plus_minus) > 0 ? 'stat-hi' : num(r.plus_minus) < 0 ? 'stat-lo' : '';
+    const assists = num(r.primary_assists) + num(r.secondary_assists);
     const ptClass = num(r.points) >= ptMax * 0.9 ? 'stat-hi' : '';
     const teamBadge = r.team === 'TOR' ? `<span class="team-badge tor">${r.team}</span>` : `<span class="team-badge">${r.team || '—'}</span>`;
     return `<tr class="player-row${isSelected ? ' selected' : ''}" data-name="${encodeURIComponent(r.name)}" data-season="${r.season}">
@@ -760,14 +768,14 @@ function renderPlayers() {
       <td>${r.position || '—'}</td>
       <td>${fmtNum(r.games_played)}</td>
       <td>${fmtNum(r.goals)}</td>
-      <td>${fmtNum(r.assists)}</td>
+      <td>${assists || '—'}</td>
       <td class="${ptClass}">${fmtNum(r.points)}</td>
-      <td class="${pmClass}">${fmtPlusMinus(r.plus_minus)}</td>
-      <td>${fmtNum(r.shots)}</td>
-      <td>${fmtPct(r.shooting_pct)}</td>
-      <td>${fmtTOI(r.toi_per_game)}</td>
-      <td>${fmtNum(r.cf_pct, 1)}</td>
-      <td>${fmtNum(r.xg_pct, 1)}</td>
+      <td>—</td>
+      <td>${fmtNum(r.shots_on_goal)}</td>
+      <td>${fmtShotPct(r.shooting_pct)}</td>
+      <td>${fmtTOI(r.icetime_min_per_game)}</td>
+      <td>${fmtNum(r.corsi_pct, 1)}</td>
+      <td>${fmtNum(r.xgf_pct, 1)}</td>
     </tr>`;
   }).join('');
 
@@ -873,14 +881,21 @@ document.getElementById('cp-close').addEventListener('click', () => {
   updateCompareUI();
 });
 
+function rowAssists(row) {
+  return num(row?.primary_assists) + num(row?.secondary_assists);
+}
+
 function renderCompare() {
+  // Pre-compute assists_total on each compare row
+  compareList.forEach(c => { if (c.row) c.row._assists = rowAssists(c.row); });
+
   const AXES = [
-    { key: 'goals',        label: 'Goals',    scale: 60 },
-    { key: 'assists',      label: 'Assists',  scale: 80 },
-    { key: 'shots',        label: 'Shots',    scale: 300 },
-    { key: 'cf_pct',       label: 'CF%',      scale: 60 },
-    { key: 'xg_pct',       label: 'xG%',      scale: 60 },
-    { key: 'toi_per_game', label: 'TOI/G',    scale: 1500 },
+    { key: 'goals',                  label: 'Goals',   scale: 60 },
+    { key: '_assists',               label: 'Assists', scale: 80 },
+    { key: 'shots_on_goal',          label: 'Shots',   scale: 300 },
+    { key: 'corsi_pct',              label: 'CF%',     scale: 65 },
+    { key: 'xgf_pct',               label: 'xG%',     scale: 65 },
+    { key: 'icetime_min_per_game',   label: 'TOI/G',   scale: 25 },
   ];
   const COLORS = ['#4ade80','#60a5fa','#f97316'];
 
@@ -888,16 +903,17 @@ function renderCompare() {
 
   // Stats table
   const statKeys = [
-    { key:'games_played', label:'GP', fmt: v=>fmtNum(v) },
-    { key:'goals',        label:'G',  fmt: v=>fmtNum(v) },
-    { key:'assists',      label:'A',  fmt: v=>fmtNum(v) },
-    { key:'points',       label:'PTS',fmt: v=>fmtNum(v) },
-    { key:'plus_minus',   label:'+/-',fmt: v=>fmtPlusMinus(v) },
-    { key:'shots',        label:'SOG',fmt: v=>fmtNum(v) },
-    { key:'shooting_pct', label:'S%', fmt: v=>fmtPct(v) },
-    { key:'cf_pct',       label:'CF%',fmt: v=>fmtNum(v,1) },
-    { key:'xg_pct',       label:'xG%',fmt: v=>fmtNum(v,1) },
-    { key:'toi_per_game', label:'TOI/G', fmt: v=>fmtTOI(v) },
+    { key:'games_played',          label:'GP',    fmt: v=>fmtNum(v) },
+    { key:'goals',                 label:'G',     fmt: v=>fmtNum(v) },
+    { key:'_assists',              label:'A',     fmt: v=>fmtNum(v) },
+    { key:'points',                label:'PTS',   fmt: v=>fmtNum(v) },
+    { key:'shots_on_goal',         label:'SOG',   fmt: v=>fmtNum(v) },
+    { key:'shooting_pct',          label:'S%',    fmt: v=>fmtShotPct(v) },
+    { key:'corsi_pct',             label:'CF%',   fmt: v=>fmtNum(v,1) },
+    { key:'xgf_pct',              label:'xG%',   fmt: v=>fmtNum(v,1) },
+    { key:'icetime_min_per_game',  label:'TOI/G', fmt: v=>fmtTOI(v) },
+    { key:'goals_per_60',          label:'G/60',  fmt: v=>fmtNum(v,2) },
+    { key:'points_per_60',         label:'P/60',  fmt: v=>fmtNum(v,2) },
   ];
 
   let html = `<table class="cmp-table"><thead><tr>
@@ -987,8 +1003,9 @@ function openDetail(name, season) {
   selectedPlayer = { name, season };
   document.getElementById('pd-player-name').textContent = name;
   const row = playerStats.find(r => r.name === name && String(r.season) === String(season));
+  const assists = row ? num(row.primary_assists) + num(row.secondary_assists) : 0;
   document.getElementById('pd-player-meta').textContent =
-    row ? `${fmtSeason(season)} · ${row.team} · ${row.position} · ${fmtNum(row.games_played)} GP · ${fmtNum(row.goals)}G ${fmtNum(row.assists)}A ${fmtNum(row.points)}PTS` : fmtSeason(season);
+    row ? `${fmtSeason(season)} · ${row.team} · ${row.position} · ${fmtNum(row.games_played)} GP · ${fmtNum(row.goals)}G ${assists}A ${fmtNum(row.points)}PTS` : fmtSeason(season);
 
   document.getElementById('player-detail').classList.add('open');
   document.getElementById('player-detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -1208,10 +1225,13 @@ function renderDetailTrends(name) {
     .call(d3.axisLeft(y).ticks(4))
     .call(g2 => g2.select('.domain').remove());
 
+  // Pre-compute assists for each career season row
+  career.forEach(r => { r._assists = num(r.primary_assists) + num(r.secondary_assists); });
+
   const lines = [
-    { key:'points', color:'#4ade80', label:'PTS' },
-    { key:'goals',  color:'#f87171', label:'G' },
-    { key:'assists',color:'#60a5fa', label:'A' },
+    { key:'points',   color:'#4ade80', label:'PTS' },
+    { key:'goals',    color:'#f87171', label:'G' },
+    { key:'_assists', color:'#60a5fa', label:'A' },
   ];
 
   lines.forEach(({ key, color, label }) => {
