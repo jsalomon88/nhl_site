@@ -556,17 +556,14 @@
           <tr>
             <th data-col="team">Team</th>
             <th data-col="season">Season</th>
-            <th data-col="games_played">GP</th>
             <th data-col="team_goals" class="sort-desc">GF</th>
-            <th data-col="team_goals_against">GA</th>
-            <th data-col="team_wins">W</th>
-            <th data-col="team_losses">L</th>
-            <th data-col="team_otlosses">OTL</th>
             <th data-col="team_points">PTS</th>
-            <th data-col="team_shots">SF</th>
-            <th data-col="team_shots_against">SA</th>
-            <th data-col="team_cf_pct">CF%</th>
-            <th data-col="team_xg_pct">xG%</th>
+            <th data-col="team_xgoals">xGF</th>
+            <th data-col="team_goals_above_expected">G+/-xG</th>
+            <th data-col="avg_corsi_pct">CF%</th>
+            <th data-col="avg_xgf_pct">xG%</th>
+            <th data-col="avg_game_score">Avg GS</th>
+            <th data-col="skaters_used">Skaters</th>
           </tr>
         </thead>
         <tbody id="teams-tbody"></tbody>
@@ -1304,33 +1301,28 @@ function renderTeams() {
 
   const tbody = document.getElementById('teams-tbody');
   if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="13" class="empty-state">No data.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="empty-state">No data.</td></tr>`;
     return;
   }
 
   const gfMax = Math.max(...rows.map(r => num(r.team_goals)));
-  const wMax  = Math.max(...rows.map(r => num(r.team_wins)));
 
   tbody.innerHTML = rows.map(r => {
     const gfClass = num(r.team_goals) >= gfMax * 0.9 ? 'stat-hi' : '';
-    const wClass  = num(r.team_wins)  >= wMax  * 0.9 ? 'stat-hi' : '';
     const badge   = r.team === 'TOR'
       ? `<span class="team-badge tor">${r.team}</span>`
       : `<span class="team-badge">${r.team}</span>`;
     return `<tr>
       <td class="name-cell">${badge} ${r.team}</td>
       <td>${fmtSeason(r.season)}</td>
-      <td>${fmtNum(r.games_played)}</td>
       <td class="${gfClass}">${fmtNum(r.team_goals)}</td>
-      <td>${fmtNum(r.team_goals_against)}</td>
-      <td class="${wClass}">${fmtNum(r.team_wins)}</td>
-      <td>${fmtNum(r.team_losses)}</td>
-      <td>${fmtNum(r.team_otlosses)}</td>
       <td>${fmtNum(r.team_points)}</td>
-      <td>${fmtNum(r.team_shots)}</td>
-      <td>${fmtNum(r.team_shots_against)}</td>
-      <td>${fmtNum(r.team_cf_pct, 1)}</td>
-      <td>${fmtNum(r.team_xg_pct, 1)}</td>
+      <td>${fmtNum(r.team_xgoals, 1)}</td>
+      <td>${fmtNum(r.team_goals_above_expected, 1)}</td>
+      <td>${fmtNum(r.avg_corsi_pct, 1)}</td>
+      <td>${fmtNum(r.avg_xgf_pct, 1)}</td>
+      <td>${fmtNum(r.avg_game_score, 1)}</td>
+      <td>${fmtNum(r.skaters_used)}</td>
     </tr>`;
   }).join('');
 
