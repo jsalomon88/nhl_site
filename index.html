@@ -180,6 +180,8 @@
     /* ── Data table ──────────────────────────────── */
     .table-wrap {
       overflow-x: auto;
+      overflow-y: auto;
+      max-height: calc(100vh - 260px);
       border: 1px solid var(--border);
       border-radius: 10px;
     }
@@ -191,6 +193,9 @@
     }
 
     thead th {
+      position: sticky;
+      top: 0;
+      z-index: 5;
       padding: 10px 14px;
       text-align: left;
       font-size: 0.72rem;
@@ -257,21 +262,31 @@
       border-radius: 4px;
     }
 
-    /* ── Player detail panel ─────────────────────── */
-    .player-detail {
-      display: none;
-      margin: 4px 0 20px;
-      border: 1px solid var(--border-mid);
-      border-radius: 10px;
+    /* ── Sticky table headers ────────────────────── */
+    #players-table thead th {
+      position: sticky;
+      top: 114px; /* 56px nav + ~58px filter bar */
+      z-index: 20;
       background: var(--surface);
-      overflow: hidden;
-      animation: fadeSlide 0.2s var(--ease);
     }
-    .player-detail.open { display: block; }
+    #teams-table thead th {
+      position: sticky;
+      top: 56px;
+      z-index: 20;
+      background: var(--surface);
+    }
+
+    /* ── Player detail inline row ─────────────────── */
+    .detail-expanded-row td { padding: 0 !important; border-bottom: 1px solid var(--border-mid); }
 
     @keyframes fadeSlide {
       from { opacity: 0; transform: translateY(-6px); }
       to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .detail-inline {
+      background: var(--surface);
+      animation: fadeSlide 0.18s var(--ease);
     }
 
     .pd-header {
@@ -510,25 +525,6 @@
     <div class="section-header">
       <div class="section-title">Players</div>
       <div class="section-sub" id="p-count"></div>
-    </div>
-    <div id="player-detail" class="player-detail">
-      <div class="pd-header">
-        <div>
-          <div class="pd-name" id="pd-player-name"></div>
-          <div class="pd-meta" id="pd-player-meta"></div>
-        </div>
-        <button class="pd-close" id="pd-close">✕</button>
-      </div>
-      <div class="pd-body">
-        <div class="pd-col">
-          <div class="pd-col-title">Shot Heatmap</div>
-          <div id="pd-heatmap"></div>
-        </div>
-        <div class="pd-col">
-          <div class="pd-col-title">Season Trends</div>
-          <div id="pd-trends"></div>
-        </div>
-      </div>
     </div>
     <div class="table-wrap">
       <table id="players-table">
@@ -1009,7 +1005,6 @@ function openDetail(name, season) {
     row ? `${fmtSeason(season)} · ${row.team} · ${row.position} · ${fmtNum(row.games_played)} GP · ${fmtNum(row.goals)}G ${assists}A ${fmtNum(row.points)}PTS` : fmtSeason(season);
 
   document.getElementById('player-detail').classList.add('open');
-  document.getElementById('player-detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
   renderDetailHeatmap(name, season);
   renderDetailTrends(name);
