@@ -281,6 +281,8 @@
       justify-content: space-between;
       padding: 16px 20px 12px;
       border-bottom: 1px solid var(--border);
+      position: sticky;
+      left: 0;
     }
     .pd-name {
       font-family: var(--serif);
@@ -295,6 +297,9 @@
       cursor: pointer;
       padding: 4px 8px;
       border-radius: 4px;
+      flex-shrink: 0;
+      position: sticky;
+      right: 8px;
     }
     .pd-close:hover { color: var(--text); background: var(--border-mid); }
 
@@ -1206,8 +1211,8 @@ function renderDetailTrends(name) {
     return;
   }
 
-  const W = 360, H = 220;
-  const margin = { t:16, r:24, b:30, l:36 };
+  const W = 380, H = 220;
+  const margin = { t:16, r:70, b:30, l:36 };
   const iw = W - margin.l - margin.r;
   const ih = H - margin.t - margin.b;
 
@@ -1278,11 +1283,11 @@ function renderDetailTrends(name) {
       .attr('stroke-width', 1.5);
   });
 
-  // Legend
-  const legG = g.append('g').attr('transform', `translate(${iw - 80}, 0)`);
+  // Legend — placed in right margin outside the data area
+  const legG = svg.append('g').attr('transform', `translate(${margin.l + iw + 10}, ${margin.t})`);
   lines.forEach(({ color, label }, i) => {
-    legG.append('circle').attr('cx',6).attr('cy', i*16).attr('r',4).attr('fill',color);
-    legG.append('text').attr('x',14).attr('y', i*16+4)
+    legG.append('circle').attr('cx',6).attr('cy', i*18).attr('r',4).attr('fill',color);
+    legG.append('text').attr('x',14).attr('y', i*18+4)
       .attr('fill','var(--text-sec)').attr('font-size',9)
       .attr('font-family','var(--sans)').text(label);
   });
