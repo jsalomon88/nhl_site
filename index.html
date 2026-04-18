@@ -262,22 +262,8 @@
       border-radius: 4px;
     }
 
-    /* ── Sticky table headers ────────────────────── */
-    #players-table thead th {
-      position: sticky;
-      top: 114px; /* 56px nav + ~58px filter bar */
-      z-index: 20;
-      background: var(--surface);
-    }
-    #teams-table thead th {
-      position: sticky;
-      top: 56px;
-      z-index: 20;
-      background: var(--surface);
-    }
-
     /* ── Player detail inline row ─────────────────── */
-    .detail-expanded-row td { padding: 0 !important; border-bottom: 1px solid var(--border-mid); }
+    .detail-expanded-row td { padding: 0 !important; border-bottom: 2px solid var(--border-mid); }
 
     @keyframes fadeSlide {
       from { opacity: 0; transform: translateY(-6px); }
@@ -778,6 +764,11 @@ function renderPlayers() {
 
   bindPlayerRows();
   updateSortHeaders('players-table', pSort);
+
+  // Re-insert detail row below selected player after every re-render
+  if (selectedPlayer) {
+    insertDetailRow(selectedPlayer.name, selectedPlayer.season);
+  }
 }
 
 function bindPlayerRows() {
@@ -868,7 +859,6 @@ document.getElementById('p-compare-btn').addEventListener('click', () => {
   if (compareList.length >= 2) {
     renderCompare();
     document.getElementById('compare-panel').classList.add('open');
-    document.getElementById('compare-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 });
 
@@ -994,30 +984,66 @@ function drawRadar(containerId, players, axes, colors) {
 }
 
 /* ════════════════════════════════════════════════
-   PLAYER DETAIL PANEL
+   PLAYER DETAIL PANEL (inline expanded row)
 ════════════════════════════════════════════════ */
+function insertDetailRow(name, season) {
+  // Remove any existing detail rows first
+  document.querySelectorAll('.detail-expanded-row').forEach(r => r.remove());
+
+  const targetRow = document.querySelector(
+    `#players-tbody .player-row[data-name="${encodeURIComponent(name)}"][data-season="${season}"]`
+  );
+  if (!targetRow) return;
+
+  const tr = document.createElement('tr');
+  tr.className = 'detail-expanded-row';
+  tr.innerHTML = `<td colspan="15">
+    <div class="detail-inline">
+      <div class="pd-header">
+        <div>
+          <div class="pd-name" id="pd-player-name"></div>
+          <div class="pd-meta" id="pd-player-meta"></div>
+        </div>
+        <button class="pd-close" id="pd-close">✕</button>
+      </div>
+      <div class="pd-body">
+        <div class="pd-col">
+          <div class="pd-col-title">Shot Heatmap</div>
+          <div id="pd-heatmap"></div>
+        </div>
+        <div class="pd-col">
+          <div class="pd-col-title">Season Trends</div>
+          <div id="pd-trends"></div>
+        </div>
+      </div>
+    </div>
+  </td>`;
+  targetRow.after(tr);
+  document.getElementById('pd-close').addEventListener('click', closeDetail);
+}
+
 function openDetail(name, season) {
   selectedPlayer = { name, season };
-  document.getElementById('pd-player-name').textContent = name;
+  renderPlayers(); // re-render rows (highlights selected row + inserts detail row below it)
+
   const row = playerStats.find(r => r.name === name && String(r.season) === String(season));
   const assists = row ? num(row.primary_assists) + num(row.secondary_assists) : 0;
-  document.getElementById('pd-player-meta').textContent =
-    row ? `${fmtSeason(season)} · ${row.team} · ${row.position} · ${fmtNum(row.games_played)} GP · ${fmtNum(row.goals)}G ${assists}A ${fmtNum(row.points)}PTS` : fmtSeason(season);
-
-  document.getElementById('player-detail').classList.add('open');
+  const nameEl = document.getElementById('pd-player-name');
+  const metaEl = document.getElementById('pd-player-meta');
+  if (nameEl) nameEl.textContent = name;
+  if (metaEl) metaEl.textContent = row
+    ? `${fmtSeason(season)} · ${row.team} · ${row.position} · ${fmtNum(row.games_played)} GP · ${fmtNum(row.goals)}G ${assists}A ${fmtNum(row.points)}PTS`
+    : fmtSeason(season);
 
   renderDetailHeatmap(name, season);
   renderDetailTrends(name);
-  renderPlayers(); // refresh selected highlight
 }
 
 function closeDetail() {
   selectedPlayer = null;
-  document.getElementById('player-detail').classList.remove('open');
+  document.querySelectorAll('.detail-expanded-row').forEach(r => r.remove());
   renderPlayers();
 }
-
-document.getElementById('pd-close').addEventListener('click', closeDetail);
 
 /* ════════════════════════════════════════════════
    HEATMAP
