@@ -279,8 +279,11 @@
     <!-- Team rankings table -->
     <div class="cal-panel">
       <div class="cal-panel__head">
-        <h4>Team Rankings · 2025–26</h4>
-        <span class="cal-panel__meta">sorted by xGF% · all situations</span>
+        <h4>Team Rankings · <span id="team-season-label">2025–26</span></h4>
+        <div style="display:flex;align-items:center;gap:12px">
+          <select id="team-season-select" style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.08em;background:var(--bg-2);color:var(--ink-2);border:1px solid var(--hairline-strong);border-radius:4px;padding:4px 8px;cursor:pointer;appearance:none;-webkit-appearance:none;padding-right:24px;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:right 8px center"></select>
+          <span class="cal-panel__meta">sorted by xGF% · all situations</span>
+        </div>
       </div>
       <div style="overflow-x:auto">
         <table class="cal-table" id="team-table">
@@ -488,7 +491,24 @@ async function init() {
 
   // Sort players by game_score desc (best overall)
   DATA.playersSorted = [...players].sort((a, b) => +b.game_score - +a.game_score);
-  DATA.teamsSorted = [...teams].sort((a, b) => +b.avg_xgf_pct - +a.avg_xgf_pct);
+
+  // Populate season selector (latest first)
+  const seasons = [...new Set(teams.map(t => t.season))].sort((a,b) => b - a);
+  DATA.currentTeamSeason = seasons[0];
+  const sel = document.getElementById('team-season-select');
+  seasons.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s;
+    opt.textContent = s === seasons[0] ? `${s}–${String(+s+1).slice(-2)} (current)` : `${s}–${String(+s+1).slice(-2)}`;
+    sel.appendChild(opt);
+  });
+  sel.value = DATA.currentTeamSeason;
+  sel.addEventListener('change', () => {
+    DATA.currentTeamSeason = sel.value;
+    const yr = +sel.value;
+    document.getElementById('team-season-label').textContent = `${yr}–${String(yr+1).slice(-2)}`;
+    renderTeamTable();
+  });
 
   renderStrip();
   renderKPIs();
@@ -561,6 +581,8 @@ function renderKPIs() {
 /* ── Team table ────────────────────────────────────────────── */
 function renderTeamTable() {
   const tbody = document.getElementById('team-tbody');
+  const filtered = DATA.teams.filter(t => String(t.season) === String(DATA.currentTeamSeason));
+  DATA.teamsSorted = filtered.sort((a, b) => +b.avg_xgf_pct - +a.avg_xgf_pct);
   const maxXgf = Math.max(...DATA.teamsSorted.map(t => +t.avg_xgf_pct));
   const minXgf = Math.min(...DATA.teamsSorted.map(t => +t.avg_xgf_pct));
 
