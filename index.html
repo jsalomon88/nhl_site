@@ -269,7 +269,7 @@
     </div>
 
     <!-- KPI cards -->
-    <div class="cal-kpis" data-reveal id="kpi-cards">
+    <div class="cal-kpis" id="kpi-cards">
       <div class="cal-kpi"><div class="cal-kpi__l">Top pts/60</div><div class="cal-kpi__v" id="kpi-pts60">—</div><div class="cal-kpi__sub" id="kpi-pts60-name">—</div><svg class="spark" viewBox="0 0 100 28" preserveAspectRatio="none"><polyline id="spark-pts60" fill="none" stroke="var(--accent)" stroke-width="1.5" points=""/></svg></div>
       <div class="cal-kpi"><div class="cal-kpi__l">Best xGF%</div><div class="cal-kpi__v" id="kpi-xgf">—<span>%</span></div><div class="cal-kpi__sub" id="kpi-xgf-name">—</div><svg class="spark" viewBox="0 0 100 28" preserveAspectRatio="none"><polyline id="spark-xgf" fill="none" stroke="var(--accent)" stroke-width="1.5" points=""/></svg></div>
       <div class="cal-kpi"><div class="cal-kpi__l">Top Goals</div><div class="cal-kpi__v" id="kpi-goals">—</div><div class="cal-kpi__sub" id="kpi-goals-name">—</div><svg class="spark" viewBox="0 0 100 28" preserveAspectRatio="none"><polyline id="spark-goals" fill="none" stroke="var(--accent)" stroke-width="1.5" points=""/></svg></div>
@@ -277,7 +277,7 @@
     </div>
 
     <!-- Team rankings table -->
-    <div class="cal-panel" data-reveal>
+    <div class="cal-panel">
       <div class="cal-panel__head">
         <h4>Team Rankings · 2025–26</h4>
         <span class="cal-panel__meta">sorted by xGF% · all situations</span>
@@ -307,7 +307,7 @@
     </div>
 
     <!-- Filter bar -->
-    <div class="cal-filter" data-reveal>
+    <div class="cal-filter">
       <div class="cal-filter__search" style="position:relative">
         <span class="cal-filter__icon">⌕</span>
         <input type="text" id="player-search" placeholder="Search players… e.g. McDavid, Matthews, Marner" autocomplete="off">
@@ -328,7 +328,7 @@
     </div>
 
     <!-- Player profile card -->
-    <div id="player-card" data-reveal>
+    <div id="player-card">
       <div class="cal-player__empty" id="player-empty">Search for a player above to view their profile</div>
       <div class="cal-player" id="player-detail" style="display:none">
         <div class="cal-player__head">
@@ -395,7 +395,7 @@
       <span class="section-meta" id="model-meta">xG signal · skill decomposition</span>
     </div>
 
-    <div class="cal-model" data-reveal id="model-card">
+    <div class="cal-model" id="model-card">
       <div class="cal-model__left">
         <h2 class="cal-model__hed" id="model-hed"><em>Who's</em> outperforming their expected goals?</h2>
         <p id="model-body">The model decomposes production into linemate quality, deployment, shot quality, and a residual <em>skill signal</em>. Goals above expected isolates finishing talent from luck and context.</p>
@@ -428,7 +428,7 @@
       <span class="section-meta">How the numbers are structured</span>
     </div>
 
-    <div class="cal-data" data-reveal>
+    <div class="cal-data">
       <div class="cal-data__intro">
         <h3>Every stat on this page comes from a <em>clean, queryable schema</em>.</h3>
         <p>Below is the shape of a single player record — the same structure powers the league dashboard, the shot map, and the model. Everything is derived from raw play-by-play; nothing is hand-edited.</p>
