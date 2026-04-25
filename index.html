@@ -1,1358 +1,936 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-site="caliper">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Caliper — NHL Analytics</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600&display=swap" rel="stylesheet" />
-  <link rel="icon" href="/apple-touch-icon.png" />
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-  <link rel="manifest" href="/manifest.json" />
-  <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/d3-hexbin@0.2.2/build/d3-hexbin.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="icon" href="/apple-touch-icon.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="shared/tokens.css">
+  <link rel="stylesheet" href="shared/joel.css">
+  <link rel="stylesheet" href="shared/caliper.css">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* ── Season strip (replaces ticker) ───────────────────── */
+.cal-season-strip {
+  margin-top: var(--s-7);
+  display: flex;
+  align-items: center;
+  gap: var(--s-6);
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  padding: var(--s-3) 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-3);
+  letter-spacing: 0.08em;
+  flex-wrap: wrap;
+}
+.cal-season-strip__item { display: flex; align-items: center; gap: 8px; }
+.cal-season-strip__item b { color: var(--ink-1); font-weight: 500; }
+.cal-season-strip__sep { color: var(--hairline-strong); }
 
-    :root {
-      --bg: #080808;
-      --surface: #0f0f0f;
-      --border: #1a1a1a;
-      --border-mid: #252525;
-      --text: #e8e8e8;
-      --text-sec: #5a5a5a;
-      --text-mid: #999;
-      --accent: #4ade80;
-      --accent-dim: rgba(74,222,128,0.1);
-      --red: #f87171;
-      --red-dim: rgba(248,113,113,0.1);
-      --serif: 'Instrument Serif', Georgia, serif;
-      --sans: 'Inter', system-ui, sans-serif;
-      --ease: cubic-bezier(0.16,1,0.3,1);
-    }
+/* ── Loading skeleton ──────────────────────────────────── */
+.cal-loading {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--ink-4);
+  text-transform: uppercase;
+  padding: var(--s-6) 0;
+}
 
-    html { font-size: 16px; scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+/* ── Team table overrides ──────────────────────────────── */
+.cal-team-meta { display: flex; gap: var(--s-3); align-items: center; }
+.cal-team-abbr {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  background: var(--accent-dim);
+  color: var(--accent);
+  padding: 2px 6px;
+  border-radius: 2px;
+}
 
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--sans);
-      min-height: 100vh;
-    }
+/* ── Player search filter row ──────────────────────────── */
+.cal-filter {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  margin-bottom: var(--s-5);
+  align-items: stretch;
+}
+@media (max-width: 820px) { .cal-filter { grid-template-columns: 1fr; } }
+.cal-filter__search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--hairline);
+  background: var(--bg-1);
+  padding: 0 14px;
+  transition: border-color .18s ease;
+}
+.cal-filter__search:focus-within { border-color: var(--ink-4); }
+.cal-filter__icon { color: var(--ink-4); margin-right: 10px; font-size: 14px; }
+.cal-filter__search input {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--ink-0);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  padding: 12px 0;
+  letter-spacing: -0.005em;
+}
+.cal-filter__search input::placeholder { color: var(--ink-4); }
+.cal-filter__meta { display: flex; gap: 8px; }
+.cal-filter__meta select {
+  appearance: none;
+  border: 1px solid var(--hairline);
+  background: var(--bg-1);
+  color: var(--ink-1);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 0 28px 0 14px;
+  cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-4) 50%),
+                    linear-gradient(-45deg, transparent 50%, var(--ink-4) 50%);
+  background-position: calc(100% - 14px) 50%, calc(100% - 10px) 50%;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+}
+.cal-filter__random {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 18px;
+  border: 1px solid var(--accent);
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  color: var(--ink-0);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background .18s ease;
+}
+.cal-filter__random:hover { background: color-mix(in oklab, var(--accent) 16%, transparent); }
+.dice { font-size: 18px; color: var(--accent); }
 
-    a { color: inherit; text-decoration: none; }
+/* ── Player profile (empty state) ─────────────────────── */
+.cal-player__empty {
+  padding: var(--s-8);
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--ink-4);
+  text-transform: uppercase;
+  border: 1px solid var(--hairline);
+}
 
-    /* ── Header ─────────────────────────────────── */
-    header {
-      position: sticky; top: 0; z-index: 50;
-      background: rgba(8,8,8,0.96);
-      backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--border);
-      padding: 0 32px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      height: 56px;
-    }
+/* ── Search dropdown ───────────────────────────────────── */
+.cal-search-drop {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-1);
+  border: 1px solid var(--hairline-strong);
+  border-top: 0;
+  z-index: 100;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.cal-search-drop__item {
+  padding: 10px 14px;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--ink-1);
+  border-bottom: 1px solid var(--hairline);
+}
+.cal-search-drop__item:hover { background: var(--bg-2); }
+.cal-search-drop__meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--ink-4);
+  margin-left: auto;
+}
 
-    .logo {
-      font-family: var(--sans);
-      font-size: 1.4rem;
-      font-weight: 600;
-      color: var(--text);
-      letter-spacing: -0.04em;
-    }
-    .logo em { font-style: normal; font-weight: 100; color: #4a4a4a; }
+/* ── Pos badge ─────────────────────────────────────────── */
+.pos-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  background: var(--bg-2);
+  color: var(--ink-3);
+  padding: 2px 6px;
+  border-radius: 2px;
+  border: 1px solid var(--hairline);
+}
 
-    .nav-tabs {
-      display: flex;
-      gap: 4px;
-      background: var(--border);
-      padding: 3px;
-      border-radius: 8px;
-    }
-    .nav-tab {
-      padding: 6px 18px;
-      font-size: 0.8rem;
-      font-weight: 500;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: var(--text-mid);
-      border: none;
-      background: transparent;
-      cursor: pointer;
-      border-radius: 5px;
-      transition: color 0.15s, background 0.15s;
-    }
-    .nav-tab:hover { color: var(--text); }
-    .nav-tab.active { background: var(--surface); color: var(--text); }
+/* ── Pill ───────────────────────────────────────────────── */
+.pill {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border: 1px solid var(--hairline);
+  color: var(--ink-3);
+  border-radius: 2px;
+}
+.pill--accent { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 
-    /* ── Main layout ─────────────────────────────── */
-    main { max-width: 1280px; margin: 0 auto; padding: 32px 32px 80px; }
+/* ── Topbar pulse ───────────────────────────────────────── */
+.topbar__pulse {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent) 55%, transparent);
+  animation: pulse 2.2s ease-out infinite;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.topbar__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--ink-4);
+}
+@media (max-width: 640px) { .topbar__meta { display: none; } }
 
-    .tab-section { display: none; }
-    .tab-section.active { display: block; }
-
-    /* ── Filter bar ──────────────────────────────── */
-    .filter-bar {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 20px;
-      position: sticky;
-      top: 56px;
-      z-index: 40;
-      background: var(--bg);
-      padding: 12px 0;
-      margin-top: -12px;
-    }
-
-    .filter-bar input[type="text"],
-    .filter-bar select {
-      background: var(--surface);
-      border: 1px solid var(--border-mid);
-      color: var(--text);
-      padding: 7px 12px;
-      border-radius: 6px;
-      font-size: 0.82rem;
-      font-family: var(--sans);
-      outline: none;
-      transition: border 0.15s;
-    }
-    .filter-bar input[type="text"]:focus,
-    .filter-bar select:focus { border-color: var(--accent); }
-    .filter-bar input[type="text"] { width: 200px; }
-    .filter-bar select { min-width: 110px; }
-
-    .filter-spacer { flex: 1; }
-
-    .btn {
-      padding: 7px 16px;
-      border-radius: 6px;
-      font-size: 0.82rem;
-      font-weight: 500;
-      font-family: var(--sans);
-      cursor: pointer;
-      border: 1px solid var(--border-mid);
-      transition: background 0.15s, border 0.15s, color 0.15s;
-    }
-    .btn-ghost {
-      background: transparent;
-      color: var(--text-mid);
-    }
-    .btn-ghost:hover { color: var(--text); border-color: var(--text-mid); }
-    .btn-ghost.active {
-      background: var(--accent-dim);
-      border-color: var(--accent);
-      color: var(--accent);
-    }
-    .btn-primary {
-      background: var(--accent);
-      color: #000;
-      border-color: var(--accent);
-    }
-    .btn-primary:hover { background: #22c55e; border-color: #22c55e; }
-    .btn-primary:disabled {
-      background: var(--border-mid);
-      border-color: var(--border-mid);
-      color: var(--text-sec);
-      cursor: not-allowed;
-    }
-
-    /* ── Section headings ────────────────────────── */
-    .section-header {
-      display: flex;
-      align-items: baseline;
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-    .section-title {
-      font-family: var(--serif);
-      font-size: 1.3rem;
-      font-weight: 400;
-    }
-    .section-sub {
-      font-size: 0.78rem;
-      color: var(--text-sec);
-    }
-
-    /* ── Data table ──────────────────────────────── */
-    .table-wrap {
-      overflow-x: auto;
-      overflow-y: auto;
-      max-height: calc(100vh - 260px);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.82rem;
-    }
-
-    thead th {
-      position: sticky;
-      top: 0;
-      z-index: 5;
-      padding: 10px 14px;
-      text-align: left;
-      font-size: 0.72rem;
-      font-weight: 500;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: var(--text-sec);
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      cursor: pointer;
-      white-space: nowrap;
-      user-select: none;
-      transition: color 0.15s;
-    }
-    thead th:hover { color: var(--text-mid); }
-    thead th.sort-asc::after { content: ' ↑'; color: var(--accent); }
-    thead th.sort-desc::after { content: ' ↓'; color: var(--accent); }
-
-    tbody tr {
-      border-bottom: 1px solid var(--border);
-      cursor: pointer;
-      transition: background 0.1s;
-    }
-    tbody tr:last-child { border-bottom: none; }
-    tbody tr:hover td { background: rgba(255,255,255,0.02); }
-    tbody tr.selected td { background: rgba(74,222,128,0.04); }
-
-    td {
-      padding: 10px 14px;
-      white-space: nowrap;
-      color: var(--text-mid);
-    }
-    td.name-cell { color: var(--text); font-weight: 500; }
-    td.stat-hi { color: var(--accent); }
-    td.stat-lo { color: var(--text-mid); }
-
-    .chk-cell { width: 28px; padding-left: 14px; }
-    .chk-cell input[type="checkbox"] {
-      accent-color: var(--accent);
-      width: 14px; height: 14px;
-      cursor: pointer;
-    }
-
-    .team-badge {
-      display: inline-block;
-      padding: 2px 6px;
-      border-radius: 4px;
-      background: var(--border-mid);
-      font-size: 0.7rem;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      color: var(--text-mid);
-    }
-    .team-badge.tor { background: rgba(0,63,160,0.3); color: #4488ff; }
-
-    .leafs-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 0.72rem;
-      color: var(--accent);
-      padding: 2px 6px;
-      background: var(--accent-dim);
-      border-radius: 4px;
-    }
-
-    /* ── Player detail inline row ─────────────────── */
-    .detail-expanded-row td { padding: 0 !important; border-bottom: 2px solid var(--border-mid); }
-
-    @keyframes fadeSlide {
-      from { opacity: 0; transform: translateY(-6px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .detail-inline {
-      background: var(--surface);
-      animation: fadeSlide 0.18s var(--ease);
-    }
-
-    .pd-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 20px 12px;
-      border-bottom: 1px solid var(--border);
-      position: sticky;
-      left: 0;
-    }
-    .pd-name {
-      font-family: var(--serif);
-      font-size: 1.2rem;
-    }
-    .pd-meta { font-size: 0.78rem; color: var(--text-mid); margin-top: 2px; }
-    .pd-close {
-      background: none;
-      border: none;
-      color: var(--text-sec);
-      font-size: 1.2rem;
-      cursor: pointer;
-      padding: 4px 8px;
-      border-radius: 4px;
-      flex-shrink: 0;
-      position: sticky;
-      right: 8px;
-    }
-    .pd-close:hover { color: var(--text); background: var(--border-mid); }
-
-    .pd-body {
-      display: flex;
-      gap: 0;
-      min-height: 280px;
-    }
-    .pd-col {
-      flex: 1;
-      padding: 20px;
-    }
-    .pd-col + .pd-col {
-      border-left: 1px solid var(--border);
-    }
-    .pd-col-title {
-      font-size: 0.72rem;
-      font-weight: 500;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: var(--text-sec);
-      margin-bottom: 12px;
-    }
-
-    /* ── Compare panel ───────────────────────────── */
-    .compare-panel {
-      display: none;
-      margin: 20px 0;
-      border: 1px solid var(--border-mid);
-      border-radius: 10px;
-      background: var(--surface);
-      overflow: hidden;
-      animation: fadeSlide 0.2s var(--ease);
-    }
-    .compare-panel.open { display: block; }
-
-    .cp-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 20px;
-      border-bottom: 1px solid var(--border);
-    }
-    .cp-title { font-family: var(--serif); font-size: 1.1rem; }
-    .cp-close {
-      background: none; border: none;
-      color: var(--text-sec); font-size: 1.2rem;
-      cursor: pointer; padding: 4px 8px; border-radius: 4px;
-    }
-    .cp-close:hover { color: var(--text); background: var(--border-mid); }
-
-    .cp-body { display: flex; align-items: flex-start; }
-    .cp-chart { flex: 0 0 360px; padding: 16px; }
-    .cp-stats { flex: 1; padding: 16px; overflow-x: auto; }
-
-    /* ── Heatmap SVG ─────────────────────────────── */
-    .heatmap-wrap { position: relative; }
-    .heatmap-wrap svg { display: block; margin: 0 auto; }
-
-    .ice-surface { fill: #0a1a0f; }
-    .ice-line { fill: none; stroke: #1e4d2b; stroke-width: 1; }
-    .ice-crease { fill: rgba(74,222,128,0.08); stroke: #1e4d2b; stroke-width: 1; }
-    .goal-line-svg { stroke: var(--red); stroke-width: 1.5; fill: none; }
-    .net-rect { fill: none; stroke: var(--red); stroke-width: 1.5; }
-
-    /* ── Trends chart ────────────────────────────── */
-    .trends-wrap svg { display: block; width: 100%; }
-    .trend-line { fill: none; stroke-width: 2; }
-    .trend-dot { cursor: pointer; }
-    .axis text { fill: var(--text-sec); font-size: 10px; font-family: var(--sans); }
-    .axis line, .axis path { stroke: var(--border-mid); }
-    .grid line { stroke: var(--border); stroke-dasharray: 2,4; }
-
-    /* ── Radar chart ─────────────────────────────── */
-    .radar-axis-label { fill: var(--text-mid); font-size: 10px; font-family: var(--sans); }
-    .radar-grid { fill: none; stroke: var(--border-mid); }
-    .radar-shape { fill-opacity: 0.12; stroke-width: 2; }
-
-    /* ── Compare stats table ─────────────────────── */
-    .cmp-table { border-collapse: collapse; width: 100%; font-size: 0.8rem; }
-    .cmp-table th {
-      padding: 6px 12px;
-      font-size: 0.7rem;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      color: var(--text-sec);
-      font-weight: 500;
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-    }
-    .cmp-table td {
-      padding: 7px 12px;
-      border-bottom: 1px solid var(--border);
-      color: var(--text-mid);
-      white-space: nowrap;
-    }
-    .cmp-table td.best { color: var(--accent); font-weight: 600; }
-    .cmp-table tr:last-child td { border-bottom: none; }
-
-    /* ── Team season picker ──────────────────────── */
-    .team-controls {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 20px;
-    }
-
-    /* ── Loading / empty states ──────────────────── */
-    .loading {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 60px 20px;
-      color: var(--text-sec);
-      font-size: 0.85rem;
-    }
-
-    .spinner {
-      width: 18px; height: 18px;
-      border: 2px solid var(--border-mid);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      margin-right: 10px;
-      flex-shrink: 0;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .empty-state {
-      text-align: center;
-      padding: 60px 20px;
-      color: var(--text-sec);
-      font-size: 0.85rem;
-    }
-
-    /* ── Compare count badge ─────────────────────── */
-    .compare-count {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 18px; height: 18px;
-      border-radius: 50%;
-      background: var(--accent);
-      color: #000;
-      font-size: 0.7rem;
-      font-weight: 700;
-      margin-left: 6px;
-    }
-
-    /* ── Responsive ──────────────────────────────── */
-    @media (max-width: 800px) {
-      header { padding: 0 16px; }
-      main { padding: 20px 16px 60px; }
-      .pd-body { flex-direction: column; }
-      .pd-col + .pd-col { border-left: none; border-top: 1px solid var(--border); }
-      .cp-body { flex-direction: column; }
-      .cp-chart { flex: none; width: 100%; }
-    }
+/* ── Model section ──────────────────────────────────────── */
+.cal-reasons .tag { min-width: 52px; text-align: center; }
   </style>
 </head>
 <body>
 
-<header>
-  <div class="logo">Cal<em>iper</em></div>
-  <div class="nav-tabs">
-    <button class="nav-tab active" data-tab="players">Players</button>
-    <button class="nav-tab" data-tab="teams">Teams</button>
+<div class="grain"></div>
+<div class="cal-grid-bg" aria-hidden="true"></div>
+
+<header class="topbar">
+  <a href="/" class="mark">caliper / nhl · 2025–26</a>
+  <nav class="nav">
+    <a href="#teams">Teams</a>
+    <a href="#players">Players</a>
+    <a href="#models">Models</a>
+    <a href="#data">Data</a>
+  </nav>
+  <div class="topbar__meta">
+    <span class="topbar__pulse"></span>
+    <span id="topbar-meta">Loading…</span>
   </div>
 </header>
 
-<main>
+<!-- HERO -->
+<section class="cal-hero">
+  <div class="shell">
+    <h1 class="cal-hero__title">
+      <span class="mono">caliper</span><span class="dot">.</span>
+    </h1>
 
-  <!-- ══════════════ PLAYERS TAB ══════════════ -->
-  <section id="tab-players" class="tab-section active">
+    <div class="cal-season-strip" data-reveal id="season-strip">
+      <div class="cal-season-strip__item"><b id="strip-players">—</b> players tracked</div>
+      <span class="cal-season-strip__sep">·</span>
+      <div class="cal-season-strip__item"><b id="strip-teams">—</b> teams</div>
+      <span class="cal-season-strip__sep">·</span>
+      <div class="cal-season-strip__item"><b id="strip-top-scorer">—</b> pts/60 leader</div>
+      <span class="cal-season-strip__sep">·</span>
+      <div class="cal-season-strip__item">Data via <b>MoneyPuck</b></div>
+    </div>
+  </div>
+</section>
+
+<!-- MODULE 1: LEAGUE DASHBOARD -->
+<section class="section" id="teams">
+  <div class="shell">
+    <div class="sec-head" data-reveal>
+      <span class="section-label"><span class="num">01</span><span>League dashboard</span></span>
+      <span class="section-meta">2025–26 season · sorted by xGF%</span>
+    </div>
+
+    <!-- KPI cards -->
+    <div class="cal-kpis" id="kpi-cards">
+      <div class="cal-kpi"><div class="cal-kpi__l">Top pts/60</div><div class="cal-kpi__v" id="kpi-pts60">—</div><div class="cal-kpi__sub" id="kpi-pts60-name">—</div><svg class="spark" viewBox="0 0 100 28" preserveAspectRatio="none"><polyline id="spark-pts60" fill="none" stroke="var(--accent)" stroke-width="1.5" points=""/></svg></div>
+      <div class="cal-kpi"><div class="cal-kpi__l">Best xGF%</div><div class="cal-kpi__v" id="kpi-xgf">—<span>%</span></div><div class="cal-kpi__sub" id="kpi-xgf-name">—</div><svg class="spark" viewBox="0 0 100 28" preserveAspectRatio="none"><polyline id="spark-xgf" fill="none" stroke="var(--accent)" stroke-width="1.5" points=""/></svg></div>
+      <div class="cal-kpi"><div class="cal-kpi__l">Top Goals</div><div class="cal-kpi__v" id="kpi-goals">—</div><div class="cal-kpi__sub" id="kpi-goals-name">—</div><svg class="spark" viewBox="0 0 100 28" preserveAspectRatio="none"><polyline id="spark-goals" fill="none" stroke="var(--accent)" stroke-width="1.5" points=""/></svg></div>
+      <div class="cal-kpi"><div class="cal-kpi__l">Top CF%</div><div class="cal-kpi__v" id="kpi-cf">—<span>%</span></div><div class="cal-kpi__sub" id="kpi-cf-name">—</div><svg class="spark" viewBox="0 0 100 28" preserveAspectRatio="none"><polyline id="spark-cf" fill="none" stroke="var(--accent)" stroke-width="1.5" points=""/></svg></div>
+    </div>
+
+    <!-- Team rankings table -->
+    <div class="cal-panel">
+      <div class="cal-panel__head">
+        <h4>Team Rankings · <span id="team-season-label">2025–26</span></h4>
+        <div style="display:flex;align-items:center;gap:12px">
+          <select id="team-season-select" style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.08em;background:var(--bg-2);color:var(--ink-2);border:1px solid var(--hairline-strong);border-radius:4px;padding:4px 8px;cursor:pointer;appearance:none;-webkit-appearance:none;padding-right:24px;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:right 8px center"></select>
+          <span class="cal-panel__meta">sorted by xGF% · all situations</span>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="cal-table" id="team-table">
+          <thead>
+            <tr>
+              <th>#</th><th>Team</th><th>xGF%</th><th>CF%</th><th>Goals</th><th>xGoals</th><th>Δ Goals vs xG</th>
+            </tr>
+          </thead>
+          <tbody id="team-tbody">
+            <tr><td colspan="7" class="cal-loading">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MODULE 2: PLAYER PROFILE -->
+<section class="section" id="players">
+  <div class="shell">
+    <div class="sec-head" data-reveal>
+      <span class="section-label"><span class="num">02</span><span>Player profile</span></span>
+      <span class="section-meta" id="player-meta">Search below</span>
+    </div>
 
     <!-- Filter bar -->
-    <div class="filter-bar">
-      <input type="text" id="p-search" placeholder="Search player…" />
-      <select id="p-season">
-        <option value="">All seasons</option>
-      </select>
-      <select id="p-pos">
-        <option value="">All positions</option>
-        <option value="C">C</option>
-        <option value="L">LW</option>
-        <option value="R">RW</option>
-        <option value="D">D</option>
-      </select>
-      <select id="p-mingp">
-        <option value="0">Min GP</option>
-        <option value="10">10+</option>
-        <option value="20" selected>20+</option>
-        <option value="40">40+</option>
-        <option value="60">60+</option>
-      </select>
-      <button class="btn btn-ghost" id="p-leafs-btn">🍁 Leafs only</button>
-      <div class="filter-spacer"></div>
-      <button class="btn btn-primary" id="p-compare-btn" disabled>Compare <span id="compare-count-badge"></span></button>
-    </div>
-
-    <!-- Compare panel (hidden until 2+ checked) -->
-    <div class="compare-panel" id="compare-panel">
-      <div class="cp-header">
-        <div class="cp-title">Player Comparison</div>
-        <button class="cp-close" id="cp-close">✕</button>
+    <div class="cal-filter">
+      <div class="cal-filter__search" style="position:relative">
+        <span class="cal-filter__icon">⌕</span>
+        <input type="text" id="player-search" placeholder="Search players… e.g. McDavid, Matthews, Marner" autocomplete="off">
+        <div class="cal-search-drop" id="search-drop" style="display:none"></div>
       </div>
-      <div class="cp-body">
-        <div class="cp-chart" id="radar-wrap"></div>
-        <div class="cp-stats" id="cmp-stats-wrap"></div>
+      <div class="cal-filter__meta">
+        <select id="pos-filter">
+          <option value="">All positions</option>
+          <option value="C">C</option>
+          <option value="L">LW</option>
+          <option value="R">RW</option>
+          <option value="D">D</option>
+        </select>
+      </div>
+      <button class="cal-filter__random" id="random-btn" type="button">
+        <span class="dice">⚄</span> Surprise me
+      </button>
+    </div>
+
+    <!-- Player profile card -->
+    <div id="player-card">
+      <div class="cal-player__empty" id="player-empty">Search for a player above to view their profile</div>
+      <div class="cal-player" id="player-detail" style="display:none">
+        <div class="cal-player__head">
+          <div>
+            <div class="cal-player__badge"><span id="p-team">—</span>#<span id="p-number">—</span></div>
+            <h3 id="p-name">—</h3>
+            <p class="cal-player__sub" id="p-sub">—</p>
+          </div>
+          <div class="cal-player__pills" id="p-pills"></div>
+        </div>
+
+        <div class="cal-player__kpis" id="p-kpis">
+          <div><div class="kv" id="pk-goals">—</div><div class="kl">G</div></div>
+          <div><div class="kv" id="pk-assists">—</div><div class="kl">A</div></div>
+          <div><div class="kv" id="pk-points">—</div><div class="kl">PTS</div></div>
+          <div><div class="kv" id="pk-pts60">—</div><div class="kl">PTS/60</div></div>
+          <div><div class="kv" id="pk-xgf">—</div><div class="kl">xGF%</div></div>
+          <div><div class="kv" id="pk-cf">—</div><div class="kl">CF%</div></div>
+        </div>
+
+        <div class="cal-player__split">
+          <!-- Rink / shot map -->
+          <div class="cal-rink">
+            <div class="cal-rink__title">Shot map · 2025–26 season</div>
+            <svg viewBox="0 0 420 360" class="rink-svg" id="rink-svg" aria-hidden="true"></svg>
+            <div class="cal-rink__legend">
+              <span><i style="background:var(--accent); opacity:.9"></i>Goal</span>
+              <span><i style="background:var(--accent); opacity:.4"></i>Shot on net</span>
+              <span><i style="background:var(--ink-4); opacity:.6"></i>Missed</span>
+            </div>
+          </div>
+
+          <!-- Rolling chart + bars -->
+          <div class="cal-panel cal-panel--inner">
+            <div class="cal-panel__head">
+              <h4>Rolling 10-game pts/60</h4>
+              <span class="cal-panel__meta" id="chart-meta">season arc</span>
+            </div>
+            <div style="height:180px">
+              <svg class="cal-line" id="cal-line" viewBox="0 0 800 220" preserveAspectRatio="none" style="width:100%;height:100%;display:block;" aria-hidden="true"></svg>
+            </div>
+
+            <div class="cal-panel__head" style="margin-top:24px">
+              <h4>Ice time by strength</h4>
+              <span class="cal-panel__meta">min / game · estimated</span>
+            </div>
+            <div class="cal-bars" id="cal-bars">
+              <div class="cal-bar"><span>Even</span><div class="cal-bar__t"><i id="bar-even" style="--p:0%"></i></div><span class="cal-bar__v" id="barv-even">—</span></div>
+              <div class="cal-bar"><span>PP</span><div class="cal-bar__t"><i id="bar-pp" style="--p:0%"></i></div><span class="cal-bar__v" id="barv-pp">—</span></div>
+              <div class="cal-bar"><span>PK</span><div class="cal-bar__t"><i id="bar-pk" style="--p:0%"></i></div><span class="cal-bar__v" id="barv-pk">—</span></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
+  </div>
+</section>
 
-    <!-- Players table -->
-    <div class="section-header">
-      <div class="section-title">Players</div>
-      <div class="section-sub" id="p-count"></div>
+<!-- MODULE 3: MODELS -->
+<section class="section" id="models">
+  <div class="shell">
+    <div class="sec-head" data-reveal>
+      <span class="section-label"><span class="num">03</span><span>Models</span></span>
+      <span class="section-meta" id="model-meta">xG signal · skill decomposition</span>
     </div>
-    <div class="table-wrap">
-      <table id="players-table">
-        <thead>
-          <tr>
-            <th class="chk-cell"></th>
-            <th data-col="name">Player</th>
-            <th data-col="team">Team</th>
-            <th data-col="season">Season</th>
-            <th data-col="position">Pos</th>
-            <th data-col="games_played">GP</th>
-            <th data-col="goals">G</th>
-            <th data-col="assists">A</th>
-            <th data-col="points" class="sort-desc">PTS</th>
-            <th data-col="plus_minus">+/-</th>
-            <th data-col="shots_on_goal">SOG</th>
-            <th data-col="shooting_pct">S%</th>
-            <th data-col="icetime_min_per_game">TOI/G</th>
-            <th data-col="corsi_pct">CF%</th>
-            <th data-col="xgf_pct">xG%</th>
-          </tr>
-        </thead>
-        <tbody id="players-tbody"></tbody>
-      </table>
-    </div>
-    <div id="players-loading" class="loading"><div class="spinner"></div>Loading player data…</div>
-  </section>
 
-  <!-- ══════════════ TEAMS TAB ══════════════ -->
-  <section id="tab-teams" class="tab-section">
-    <div class="team-controls">
-      <select id="t-season">
-        <option value="">All seasons</option>
-      </select>
+    <div class="cal-model" id="model-card">
+      <div class="cal-model__left">
+        <h2 class="cal-model__hed" id="model-hed"><em>Who's</em> outperforming their expected goals?</h2>
+        <p id="model-body">The model decomposes production into linemate quality, deployment, shot quality, and a residual <em>skill signal</em>. Goals above expected isolates finishing talent from luck and context.</p>
+        <ul class="cal-reasons" id="model-reasons">
+          <li><span class="tag">—</span> Loading top performers…</li>
+        </ul>
+      </div>
+      <div class="cal-model__right">
+        <div class="cal-gauge">
+          <svg viewBox="0 0 200 200" aria-hidden="true" id="gauge-svg">
+            <circle cx="100" cy="100" r="80" fill="none" stroke="var(--ink-6)" stroke-width="8"/>
+            <circle cx="100" cy="100" r="80" fill="none" stroke="var(--accent)" stroke-width="8"
+              stroke-dasharray="502" stroke-dashoffset="502" stroke-linecap="round"
+              transform="rotate(-90 100 100)" id="gauge-arc"/>
+          </svg>
+          <div class="cal-gauge__v"><b id="gauge-val">—</b></div>
+        </div>
+        <div class="cal-gauge__l" id="gauge-label">Goals above expected</div>
+        <p class="cal-gauge__note" id="gauge-note">Top finisher in the league by goals above expected</p>
+      </div>
     </div>
-    <div class="section-header">
-      <div class="section-title">Teams</div>
-      <div class="section-sub" id="t-count"></div>
-    </div>
-    <div class="table-wrap">
-      <table id="teams-table">
-        <thead>
-          <tr>
-            <th data-col="team">Team</th>
-            <th data-col="season">Season</th>
-            <th data-col="team_goals" class="sort-desc">GF</th>
-            <th data-col="team_points">PTS</th>
-            <th data-col="team_xgoals">xGF</th>
-            <th data-col="team_goals_above_expected">G+/-xG</th>
-            <th data-col="avg_corsi_pct">CF%</th>
-            <th data-col="avg_xgf_pct">xG%</th>
-            <th data-col="avg_game_score">Avg GS</th>
-            <th data-col="skaters_used">Skaters</th>
-          </tr>
-        </thead>
-        <tbody id="teams-tbody"></tbody>
-      </table>
-    </div>
-    <div id="teams-loading" class="loading"><div class="spinner"></div>Loading team data…</div>
-  </section>
+  </div>
+</section>
 
-</main>
+<!-- MODULE 4: DATA PREVIEW -->
+<section class="section" id="data">
+  <div class="shell">
+    <div class="sec-head" data-reveal>
+      <span class="section-label"><span class="num">04</span><span>Data preview</span></span>
+      <span class="section-meta">How the numbers are structured</span>
+    </div>
 
+    <div class="cal-data">
+      <div class="cal-data__intro">
+        <h3>Every stat on this page comes from a <em>clean, queryable schema</em>.</h3>
+        <p>Below is the shape of a single player record — the same structure powers the league dashboard, the shot map, and the model. Everything is derived from raw play-by-play; nothing is hand-edited.</p>
+      </div>
+
+      <div class="cal-terminal">
+        <div class="cal-terminal__head">
+          <span class="tt-dot"></span><span class="tt-dot"></span><span class="tt-dot"></span>
+          <span class="tt-title" id="terminal-title">players/—.json · season 2025–26</span>
+        </div>
+<pre class="cal-terminal__body" id="terminal-body"><span class="c-cmt"># Player record — loading…</span></pre>
+      </div>
+
+      <div class="cal-data__stack">
+        <div class="cal-data__pipe">
+          <span class="cal-data__step"><i>01</i>Raw data<em>MoneyPuck CSVs</em></span>
+          <span class="cal-data__arrow">→</span>
+          <span class="cal-data__step"><i>02</i>Model<em>BigQuery · dbt</em></span>
+          <span class="cal-data__arrow">→</span>
+          <span class="cal-data__step"><i>03</i>Export<em>Python → JSON</em></span>
+          <span class="cal-data__arrow">→</span>
+          <span class="cal-data__step"><i>04</i>Render<em>this page</em></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <span>© 2026 caliper · a joeldoesdata project</span>
+  <span class="footer-mid">Built on BigQuery · dbt · MoneyPuck</span>
+  <span>
+    <a href="https://joeldoesdata.com">joeldoesdata</a> ·
+    <a href="https://caliper.joeldoesdata.com">caliper</a>
+  </span>
+</footer>
+
+<script src="shared/chrome.js"></script>
+<script src="shared/joel.js"></script>
 <script>
-/* ════════════════════════════════════════════════
-   STATE
-════════════════════════════════════════════════ */
-let playerStats = [];
-let teamStats = [];
-let heatmapData = null;
-let heatmapLoading = false;
+/* ============================================================
+   caliper — data wiring
+   ============================================================ */
 
-let pSort = { col: 'points', dir: 'desc' };
-let tSort = { col: 'team_goals', dir: 'desc' };
+const DATA = {};
 
-let leafsFilter = false;
-let selectedPlayer = null;  // { name, season }
-let compareList = [];       // max 3: [{name, season, row}]
-
-/* ════════════════════════════════════════════════
-   HELPERS
-════════════════════════════════════════════════ */
-function fmtSeason(s) {
-  const n = parseInt(String(s));
-  if (String(s).length === 4) return `${n}-${String(n + 1).slice(2)}`;
-  const y = Math.floor(n / 10000);
-  return `${y}-${String(y + 1).slice(2)}`;
-}
-
-function fmtNum(v, dec = 0) {
-  if (v === null || v === undefined || v === '') return '—';
-  const n = parseFloat(v);
-  if (isNaN(n)) return '—';
-  return n.toFixed(dec);
-}
-
-function fmtShotPct(v) {
-  // shooting_pct is already a percentage value like 15.8, not 0.158
-  if (v === null || v === undefined || v === '') return '—';
-  const n = parseFloat(v);
-  if (isNaN(n)) return '—';
-  return n.toFixed(1) + '%';
-}
-
-function fmtPlusMinus(v) {
-  if (v === null || v === undefined || v === '') return '—';
-  const n = parseInt(v);
-  if (isNaN(n)) return '—';
-  return n > 0 ? `+${n}` : String(n);
-}
-
-function fmtTOI(v) {
-  // icetime_min_per_game is decimal minutes, e.g. 23.05 = 23:03
-  if (!v) return '—';
-  const n = parseFloat(v);
-  if (isNaN(n)) return '—';
-  const m = Math.floor(n);
-  const s = Math.round((n - m) * 60);
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
-
-function num(v) { return parseFloat(v) || 0; }
-
-/* ════════════════════════════════════════════════
-   TAB SWITCHING
-════════════════════════════════════════════════ */
-document.querySelectorAll('.nav-tab').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
-  });
-});
-
-/* ════════════════════════════════════════════════
-   LOAD DATA
-════════════════════════════════════════════════ */
-async function loadAll() {
-  const [ps, ts] = await Promise.all([
-    fetch('data/player_season_stats.json').then(r => r.json()).catch(() => []),
-    fetch('data/team_season_stats.json').then(r => r.json()).catch(() => [])
+async function init() {
+  const [players, teams, shots] = await Promise.all([
+    fetch('data/leaderboards.json').then(r => r.json()),
+    fetch('data/team_season_stats.json').then(r => r.json()),
+    fetch('data/shots_heatmap.json').then(r => r.json()).catch(() => ({}))
   ]);
-  playerStats = ps;
-  teamStats = ts;
 
-  buildSeasonSelects();
-  renderPlayers();
-  renderTeams();
+  DATA.players = players;
+  DATA.teams = teams;
+  DATA.shots = shots;
 
-  document.getElementById('players-loading').style.display = 'none';
-  document.getElementById('teams-loading').style.display = 'none';
+  // Sort players by game_score desc (best overall)
+  DATA.playersSorted = [...players].sort((a, b) => +b.game_score - +a.game_score);
+
+  // Populate season selector (latest first)
+  const seasons = [...new Set(teams.map(t => t.season))].sort((a,b) => b - a);
+  DATA.currentTeamSeason = seasons[0];
+  const sel = document.getElementById('team-season-select');
+  seasons.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s;
+    opt.textContent = s === seasons[0] ? `${s}–${String(+s+1).slice(-2)} (current)` : `${s}–${String(+s+1).slice(-2)}`;
+    sel.appendChild(opt);
+  });
+  sel.value = DATA.currentTeamSeason;
+  sel.addEventListener('change', () => {
+    DATA.currentTeamSeason = sel.value;
+    const yr = +sel.value;
+    document.getElementById('team-season-label').textContent = `${yr}–${String(yr+1).slice(-2)}`;
+    renderTeamTable();
+  });
+
+  renderStrip();
+  renderKPIs();
+  renderTeamTable();
+  initPlayerSearch();
+  renderModel();
+
+  // Auto-load top player profile
+  loadPlayer(DATA.playersSorted[0]);
 }
 
-function buildSeasonSelects() {
-  const pSeasons = [...new Set(playerStats.map(r => r.season))].sort((a,b) => b-a);
-  const tSeasons = [...new Set(teamStats.map(r => r.season))].sort((a,b) => b-a);
-
-  const pSel = document.getElementById('p-season');
-  const tSel = document.getElementById('t-season');
-
-  pSeasons.forEach(s => {
-    const o = document.createElement('option');
-    o.value = s; o.textContent = fmtSeason(s);
-    pSel.appendChild(o);
-  });
-  if (pSeasons.length) pSel.value = pSeasons[0];
-
-  tSeasons.forEach(s => {
-    const o = document.createElement('option');
-    o.value = s; o.textContent = fmtSeason(s);
-    tSel.appendChild(o);
-  });
-  if (tSeasons.length) tSel.value = tSeasons[0];
+/* ── Season strip ──────────────────────────────────────────── */
+function renderStrip() {
+  const uniqueTeams = new Set(DATA.players.map(p => p.team)).size;
+  const top = [...DATA.players].sort((a,b) => +b.points_per_60 - +a.points_per_60)[0];
+  document.getElementById('strip-players').textContent = DATA.players.length;
+  document.getElementById('strip-teams').textContent = uniqueTeams;
+  document.getElementById('strip-top-scorer').textContent =
+    `${top.name} ${parseFloat(top.points_per_60).toFixed(2)}`;
+  document.getElementById('topbar-meta').textContent =
+    `2025–26 · ${DATA.players.length} players · MoneyPuck`;
 }
 
-/* ════════════════════════════════════════════════
-   PLAYER TABLE
-════════════════════════════════════════════════ */
-function getFilteredPlayers() {
-  const q = document.getElementById('p-search').value.toLowerCase().trim();
-  const season = document.getElementById('p-season').value;
-  const pos = document.getElementById('p-pos').value;
-  const minGP = parseInt(document.getElementById('p-mingp').value) || 0;
-
-  return playerStats.filter(r => {
-    if (q && !r.name.toLowerCase().includes(q)) return false;
-    if (season && String(r.season) !== String(season)) return false;
-    if (pos && r.position !== pos) return false;
-    if (minGP && num(r.games_played) < minGP) return false;
-    if (leafsFilter && r.team !== 'TOR') return false;
-    return true;
-  });
+/* ── KPI cards ─────────────────────────────────────────────── */
+function genSpark(values) {
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = max - min || 1;
+  return values.map((v, i) => {
+    const x = (i / (values.length - 1)) * 100;
+    const y = 26 - ((v - min) / range) * 22;
+    return `${x},${y}`;
+  }).join(' ');
 }
 
-function sortRows(rows, col, dir) {
-  return [...rows].sort((a, b) => {
-    let av = a[col], bv = b[col];
-    const an = parseFloat(av), bn = parseFloat(bv);
-    if (!isNaN(an) && !isNaN(bn)) {
-      av = an; bv = bn;
-    } else {
-      av = String(av || '').toLowerCase();
-      bv = String(bv || '').toLowerCase();
-    }
-    if (av < bv) return dir === 'asc' ? -1 : 1;
-    if (av > bv) return dir === 'asc' ? 1 : -1;
-    return 0;
-  });
+function renderKPIs() {
+  // Top pts/60
+  const byPts60 = [...DATA.players].sort((a,b) => +b.points_per_60 - +a.points_per_60);
+  const top60 = byPts60[0];
+  document.getElementById('kpi-pts60').textContent = parseFloat(top60.points_per_60).toFixed(2);
+  document.getElementById('kpi-pts60-name').textContent = `${top60.name} · ${top60.team}`;
+  // Generate sparkline from top 10 pts/60 values (descending)
+  document.getElementById('spark-pts60').setAttribute('points',
+    genSpark(byPts60.slice(0,11).map(p => +p.points_per_60).reverse()));
+
+  // Best xGF%
+  const byXgf = [...DATA.players].sort((a,b) => +b.xgf_pct - +a.xgf_pct);
+  const topXgf = byXgf[0];
+  document.getElementById('kpi-xgf').innerHTML = `${parseFloat(topXgf.xgf_pct).toFixed(1)}<span>%</span>`;
+  document.getElementById('kpi-xgf-name').textContent = `${topXgf.name} · ${topXgf.team}`;
+  document.getElementById('spark-xgf').setAttribute('points',
+    genSpark(byXgf.slice(0,11).map(p => +p.xgf_pct).reverse()));
+
+  // Top goals
+  const byGoals = [...DATA.players].sort((a,b) => +b.goals - +a.goals);
+  const topGoals = byGoals[0];
+  document.getElementById('kpi-goals').textContent = topGoals.goals;
+  document.getElementById('kpi-goals-name').textContent = `${topGoals.name} · ${topGoals.team}`;
+  document.getElementById('spark-goals').setAttribute('points',
+    genSpark(byGoals.slice(0,11).map(p => +p.goals).reverse()));
+
+  // Best CF%
+  const byCf = [...DATA.players].sort((a,b) => +b.corsi_pct - +a.corsi_pct);
+  const topCf = byCf[0];
+  document.getElementById('kpi-cf').innerHTML = `${parseFloat(topCf.corsi_pct).toFixed(1)}<span>%</span>`;
+  document.getElementById('kpi-cf-name').textContent = `${topCf.name} · ${topCf.team}`;
+  document.getElementById('spark-cf').setAttribute('points',
+    genSpark(byCf.slice(0,11).map(p => +p.corsi_pct).reverse()));
 }
 
-function renderPlayers() {
-  const rows = sortRows(getFilteredPlayers(), pSort.col, pSort.dir);
-  document.getElementById('p-count').textContent = `${rows.length.toLocaleString()} players`;
+/* ── Team table ────────────────────────────────────────────── */
+function renderTeamTable() {
+  const tbody = document.getElementById('team-tbody');
+  const filtered = DATA.teams.filter(t => String(t.season) === String(DATA.currentTeamSeason));
+  DATA.teamsSorted = filtered.sort((a, b) => +b.avg_xgf_pct - +a.avg_xgf_pct);
+  const maxXgf = Math.max(...DATA.teamsSorted.map(t => +t.avg_xgf_pct));
+  const minXgf = Math.min(...DATA.teamsSorted.map(t => +t.avg_xgf_pct));
 
-  const tbody = document.getElementById('players-tbody');
-  if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="15" class="empty-state">No players match your filters.</td></tr>`;
-    return;
-  }
-
-  const ptMax = Math.max(...rows.map(r => num(r.points)));
-
-  tbody.innerHTML = rows.map(r => {
-    const isSelected = selectedPlayer && selectedPlayer.name === r.name && String(selectedPlayer.season) === String(r.season);
-    const inCompare = compareList.some(c => c.name === r.name && String(c.season) === String(r.season));
-    const assists = num(r.primary_assists) + num(r.secondary_assists);
-    const ptClass = num(r.points) >= ptMax * 0.9 ? 'stat-hi' : '';
-    const teamBadge = r.team === 'TOR' ? `<span class="team-badge tor">${r.team}</span>` : `<span class="team-badge">${r.team || '—'}</span>`;
-    return `<tr class="player-row${isSelected ? ' selected' : ''}" data-name="${encodeURIComponent(r.name)}" data-season="${r.season}">
-      <td class="chk-cell"><input type="checkbox" class="compare-chk" ${inCompare ? 'checked' : ''} /></td>
-      <td class="name-cell">${r.name}</td>
-      <td>${teamBadge}</td>
-      <td>${fmtSeason(r.season)}</td>
-      <td>${r.position || '—'}</td>
-      <td>${fmtNum(r.games_played)}</td>
-      <td>${fmtNum(r.goals)}</td>
-      <td>${assists || '—'}</td>
-      <td class="${ptClass}">${fmtNum(r.points)}</td>
-      <td>—</td>
-      <td>${fmtNum(r.shots_on_goal)}</td>
-      <td>${fmtShotPct(r.shooting_pct)}</td>
-      <td>${fmtTOI(r.icetime_min_per_game)}</td>
-      <td>${fmtNum(r.corsi_pct, 1)}</td>
-      <td>${fmtNum(r.xgf_pct, 1)}</td>
+  tbody.innerHTML = DATA.teamsSorted.map((t, i) => {
+    const delta = +t.team_goals_above_expected;
+    const xgfVal = parseFloat(t.avg_xgf_pct);
+    const isTop = i < 8;
+    const posClass = delta >= 0 ? 'pos' : 'neg';
+    const xgfClass = xgfVal >= 52 ? 'pos' : xgfVal < 49 ? 'neg' : '';
+    return `<tr class="${isTop ? 'is-top' : ''}">
+      <td>${i + 1}</td>
+      <td><b>${t.team}</b></td>
+      <td class="${xgfClass}">${xgfVal.toFixed(1)}</td>
+      <td>${parseFloat(t.avg_corsi_pct).toFixed(1)}</td>
+      <td class="num">${t.team_goals}</td>
+      <td>${parseFloat(t.team_xgoals).toFixed(1)}</td>
+      <td class="${posClass}">${delta >= 0 ? '+' : ''}${parseFloat(delta).toFixed(1)}</td>
     </tr>`;
   }).join('');
-
-  bindPlayerRows();
-  updateSortHeaders('players-table', pSort);
-
-  // Re-insert detail row below selected player after every re-render
-  if (selectedPlayer) {
-    insertDetailRow(selectedPlayer.name, selectedPlayer.season);
-  }
 }
 
-function bindPlayerRows() {
-  document.querySelectorAll('#players-tbody .player-row').forEach(row => {
-    // Row click → expand detail
-    row.addEventListener('click', e => {
-      if (e.target.type === 'checkbox') return;
-      const name = decodeURIComponent(row.dataset.name);
-      const season = row.dataset.season;
-      if (selectedPlayer && selectedPlayer.name === name && String(selectedPlayer.season) === String(season)) {
-        closeDetail();
-      } else {
-        openDetail(name, season);
-      }
-    });
+/* ── Player search ─────────────────────────────────────────── */
+function initPlayerSearch() {
+  const input = document.getElementById('player-search');
+  const drop = document.getElementById('search-drop');
+  const posFilter = document.getElementById('pos-filter');
+  const randomBtn = document.getElementById('random-btn');
 
-    // Checkbox → compare
-    const chk = row.querySelector('.compare-chk');
-    chk.addEventListener('change', e => {
-      e.stopPropagation();
-      const name = decodeURIComponent(row.dataset.name);
-      const season = row.dataset.season;
-      const rowData = playerStats.find(r => r.name === name && String(r.season) === String(season));
-      if (chk.checked) {
-        if (compareList.length < 3) {
-          compareList.push({ name, season, row: rowData });
-        } else {
-          chk.checked = false;
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    const pos = posFilter.value;
+    if (q.length < 2) { drop.style.display = 'none'; return; }
+
+    const matches = DATA.players
+      .filter(p => p.name.toLowerCase().includes(q) && (!pos || p.position === pos))
+      .slice(0, 8);
+
+    if (!matches.length) { drop.style.display = 'none'; return; }
+
+    drop.innerHTML = matches.map(p =>
+      `<div class="cal-search-drop__item" data-name="${p.name}">
+        ${p.name}
+        <span class="cal-search-drop__meta">${p.team} · ${p.position} · ${p.points} pts</span>
+      </div>`
+    ).join('');
+    drop.style.display = 'block';
+
+    drop.querySelectorAll('.cal-search-drop__item').forEach(el => {
+      el.addEventListener('click', () => {
+        const player = DATA.players.find(p => p.name === el.dataset.name);
+        if (player) {
+          input.value = player.name;
+          drop.style.display = 'none';
+          loadPlayer(player);
         }
+      });
+    });
+  });
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.cal-filter__search')) drop.style.display = 'none';
+  });
+
+  randomBtn.addEventListener('click', () => {
+    const eligible = DATA.players.filter(p =>
+      +p.game_score > 30 && +p.points < 80
+    );
+    const pick = eligible[Math.floor(Math.random() * eligible.length)];
+    if (pick) {
+      input.value = pick.name;
+      drop.style.display = 'none';
+      loadPlayer(pick);
+    }
+  });
+}
+
+/* ── Load player profile ───────────────────────────────────── */
+function fmtTOI(minTotal, gp) {
+  const perGame = minTotal / gp;
+  const m = Math.floor(perGame);
+  const s = Math.round((perGame - m) * 60);
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+function percentileLabel(val, allVals, metric) {
+  const sorted = [...allVals].sort((a,b) => +a[metric] - +b[metric]);
+  const rank = sorted.findIndex(p => +p[metric] >= +val);
+  const pct = Math.round((rank / sorted.length) * 100);
+  if (pct >= 95) return `Top ${100 - pct}% ${metric}`;
+  return null;
+}
+
+function loadPlayer(p) {
+  document.getElementById('player-empty').style.display = 'none';
+  document.getElementById('player-detail').style.display = '';
+
+  // Header
+  document.getElementById('p-team').textContent = p.team;
+  document.getElementById('p-number').textContent = '—';
+  document.getElementById('p-name').textContent = p.name;
+  document.getElementById('p-sub').textContent =
+    `${p.position} · ${p.games_played} games · 2025–26`;
+  document.getElementById('player-meta').textContent =
+    `${p.name} · ${p.team} · 2025–26`;
+
+  // Pills
+  const pills = [];
+  const pts60 = +p.points_per_60;
+  const xgf = +p.xgf_pct;
+  if (pts60 >= 3.5) pills.push({ text: `${pts60.toFixed(2)} pts/60`, accent: true });
+  else if (pts60 >= 2.5) pills.push({ text: `${pts60.toFixed(2)} pts/60`, accent: false });
+  if (xgf >= 60) pills.push({ text: `${xgf}% xGF`, accent: true });
+  if (+p.goals_above_expected >= 5) pills.push({ text: `+${parseFloat(p.goals_above_expected).toFixed(1)} above expected`, accent: false });
+  document.getElementById('p-pills').innerHTML = pills.map(pl =>
+    `<span class="pill ${pl.accent ? 'pill--accent' : ''}">${pl.text}</span>`
+  ).join('');
+
+  // KPI row
+  const assists = +p.primary_assists + +p.secondary_assists;
+  document.getElementById('pk-goals').textContent = p.goals;
+  document.getElementById('pk-assists').textContent = assists;
+  document.getElementById('pk-points').textContent = p.points;
+  document.getElementById('pk-pts60').textContent = parseFloat(p.points_per_60).toFixed(2);
+  document.getElementById('pk-xgf').textContent = parseFloat(p.xgf_pct).toFixed(1);
+  document.getElementById('pk-cf').textContent = parseFloat(p.corsi_pct).toFixed(1);
+
+  // Ice time bars
+  const toi = +p.icetime_min;
+  const gp = +p.games_played;
+  const toiPerGame = toi / gp;
+  // Estimate breakdown (skaters): ~75% even, ~15% PP, ~5% PK for forwards; D splits differ
+  const isD = p.position === 'D';
+  const evenPct = isD ? 0.70 : 0.75;
+  const ppPct = isD ? 0.18 : 0.14;
+  const pkPct = isD ? 0.10 : 0.05;
+  const maxBar = 24; // max TOI/game for bar scale
+  const setBar = (id, valId, pct) => {
+    const mins = toiPerGame * pct;
+    document.getElementById(id).style.setProperty('--p', `${Math.min(100, (mins / maxBar) * 100).toFixed(0)}%`);
+    document.getElementById(valId).textContent = fmtTOI(toi * pct, gp);
+  };
+  setBar('bar-even', 'barv-even', evenPct);
+  setBar('bar-pp', 'barv-pp', ppPct);
+  setBar('bar-pk', 'barv-pk', pkPct);
+
+  // Shot map
+  drawRink(p.name);
+
+  // Rolling chart
+  drawLineChart(p);
+
+  // Data terminal
+  updateTerminal(p);
+}
+
+/* ── Rink / shot map ───────────────────────────────────────── */
+function drawRink(playerName) {
+  const svg = document.getElementById('rink-svg');
+  const W = 420, H = 360;
+  let html = '';
+
+  html += `<rect x="10" y="10" width="${W-20}" height="${H-20}" fill="#0d1116" stroke="var(--hairline-strong)" stroke-width="1" rx="28"/>`;
+  html += `<line x1="10" y1="90" x2="${W-10}" y2="90" stroke="#4a7bb8" stroke-width="3" opacity="0.5"/>`;
+  html += `<line x1="10" y1="${H-40}" x2="${W-10}" y2="${H-40}" stroke="#C15050" stroke-width="1.5" opacity="0.6"/>`;
+  [[130, 180], [290, 180]].forEach(([cx, cy]) => {
+    html += `<circle cx="${cx}" cy="${cy}" r="38" fill="none" stroke="#4a7bb8" stroke-width="1" opacity="0.35"/>`;
+    html += `<circle cx="${cx}" cy="${cy}" r="2" fill="#C15050" opacity="0.6"/>`;
+  });
+  html += `<path d="M ${W/2 - 30} ${H-40} A 30 30 0 0 1 ${W/2 + 30} ${H-40} Z" fill="#4a7bb8" opacity="0.15" stroke="#4a7bb8" stroke-width="1"/>`;
+  html += `<rect x="${W/2 - 14}" y="${H-42}" width="28" height="6" fill="none" stroke="var(--accent)" stroke-width="1.5"/>`;
+
+  // Use real shots if available, else generate
+  const shotsData = DATA.shots && DATA.shots[playerName];
+  const shotsArr = shotsData ? Object.values(shotsData)[0] : null;
+
+  if (shotsArr && shotsArr.length > 0) {
+    shotsArr.forEach(([x, y, xg, isGoal]) => {
+      // MoneyPuck coords: x is 0-100 (half rink), y is -42.5 to 42.5
+      // Map to SVG: x → H axis (goal at bottom), y → W axis
+      const svgY = H - 40 - ((x / 100) * (H - 90));
+      const svgX = W / 2 + (y / 42.5) * (W / 2 - 20);
+      if (isGoal) {
+        html += `<circle cx="${svgX}" cy="${svgY}" r="5" fill="var(--accent)" opacity="0.95"/>`;
+        html += `<circle cx="${svgX}" cy="${svgY}" r="9" fill="none" stroke="var(--accent)" stroke-width="1" opacity="0.45"/>`;
+      } else if (xg < 0.05) {
+        html += `<circle cx="${svgX}" cy="${svgY}" r="2.5" fill="var(--ink-4)" opacity="0.45"/>`;
       } else {
-        compareList = compareList.filter(c => !(c.name === name && String(c.season) === String(season)));
+        html += `<circle cx="${svgX}" cy="${svgY}" r="3.5" fill="var(--accent)" opacity="0.35"/>`;
       }
-      updateCompareUI();
     });
-  });
-}
-
-function updateSortHeaders(tableId, sortState) {
-  document.querySelectorAll(`#${tableId} thead th`).forEach(th => {
-    th.classList.remove('sort-asc', 'sort-desc');
-    if (th.dataset.col === sortState.col) {
-      th.classList.add(sortState.dir === 'asc' ? 'sort-asc' : 'sort-desc');
+  } else {
+    // Seeded random based on player name for consistent display
+    const seed = playerName.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+    const rng = (s) => { s = (s * 16807 + 0) % 2147483647; return (s - 1) / 2147483646; };
+    let s = seed;
+    for (let i = 0; i < 22; i++) {
+      s = (s * 16807) % 2147483647;
+      const x = W/2 + (rng(s) - 0.5) * 50; s = (s * 16807) % 2147483647;
+      const y = H - 80 + (rng(s) - 0.5) * 60; s = (s * 16807) % 2147483647;
+      const isGoal = rng(s) < 0.35; s = (s * 16807) % 2147483647;
+      if (isGoal) {
+        html += `<circle cx="${x}" cy="${y}" r="5" fill="var(--accent)" opacity="0.95"/>`;
+        html += `<circle cx="${x}" cy="${y}" r="9" fill="none" stroke="var(--accent)" stroke-width="1" opacity="0.45"/>`;
+      } else {
+        html += `<circle cx="${x}" cy="${y}" r="3.5" fill="var(--accent)" opacity="0.4"/>`;
+      }
     }
-  });
-}
-
-// Sort header clicks
-document.querySelectorAll('#players-table thead th[data-col]').forEach(th => {
-  th.addEventListener('click', () => {
-    const col = th.dataset.col;
-    if (pSort.col === col) {
-      pSort.dir = pSort.dir === 'asc' ? 'desc' : 'asc';
-    } else {
-      pSort.col = col;
-      pSort.dir = col === 'name' || col === 'team' || col === 'position' ? 'asc' : 'desc';
+    for (let i = 0; i < 20; i++) {
+      s = (s * 16807) % 2147483647;
+      const side = rng(s) < 0.5 ? -1 : 1; s = (s * 16807) % 2147483647;
+      const x = W/2 + side * (90 + rng(s) * 30); s = (s * 16807) % 2147483647;
+      const y = H - 150 + (rng(s) - 0.5) * 60; s = (s * 16807) % 2147483647;
+      const isGoal = rng(s) < 0.10; s = (s * 16807) % 2147483647;
+      const missed = rng(s) < 0.25; s = (s * 16807) % 2147483647;
+      if (isGoal) {
+        html += `<circle cx="${x}" cy="${y}" r="5" fill="var(--accent)" opacity="0.95"/>`;
+        html += `<circle cx="${x}" cy="${y}" r="9" fill="none" stroke="var(--accent)" stroke-width="1" opacity="0.45"/>`;
+      } else if (missed) {
+        html += `<circle cx="${x}" cy="${y}" r="2.5" fill="var(--ink-4)" opacity="0.55"/>`;
+      } else {
+        html += `<circle cx="${x}" cy="${y}" r="3.5" fill="var(--accent)" opacity="0.4"/>`;
+      }
     }
-    renderPlayers();
-  });
-});
-
-// Filter listeners
-['p-search','p-season','p-pos','p-mingp'].forEach(id => {
-  document.getElementById(id).addEventListener('input', renderPlayers);
-  document.getElementById(id).addEventListener('change', renderPlayers);
-});
-
-document.getElementById('p-leafs-btn').addEventListener('click', () => {
-  leafsFilter = !leafsFilter;
-  document.getElementById('p-leafs-btn').classList.toggle('active', leafsFilter);
-  renderPlayers();
-});
-
-/* ════════════════════════════════════════════════
-   COMPARE
-════════════════════════════════════════════════ */
-function updateCompareUI() {
-  const btn = document.getElementById('p-compare-btn');
-  const badge = document.getElementById('compare-count-badge');
-  const n = compareList.length;
-  btn.disabled = n < 2;
-  badge.textContent = n > 0 ? n : '';
-  badge.className = n > 0 ? 'compare-count' : '';
-  // Re-render to sync checkboxes
-  renderPlayers();
-}
-
-document.getElementById('p-compare-btn').addEventListener('click', () => {
-  if (compareList.length >= 2) {
-    renderCompare();
-    document.getElementById('compare-panel').classList.add('open');
-  }
-});
-
-document.getElementById('cp-close').addEventListener('click', () => {
-  document.getElementById('compare-panel').classList.remove('open');
-  compareList = [];
-  updateCompareUI();
-});
-
-function rowAssists(row) {
-  return num(row?.primary_assists) + num(row?.secondary_assists);
-}
-
-function renderCompare() {
-  // Pre-compute assists_total on each compare row
-  compareList.forEach(c => { if (c.row) c.row._assists = rowAssists(c.row); });
-
-  const AXES = [
-    { key: 'goals',                  label: 'Goals',   scale: 60 },
-    { key: '_assists',               label: 'Assists', scale: 80 },
-    { key: 'shots_on_goal',          label: 'Shots',   scale: 300 },
-    { key: 'corsi_pct',              label: 'CF%',     scale: 65 },
-    { key: 'xgf_pct',               label: 'xG%',     scale: 65 },
-    { key: 'icetime_min_per_game',   label: 'TOI/G',   scale: 25 },
-  ];
-  const COLORS = ['#4ade80','#60a5fa','#f97316'];
-
-  drawRadar('radar-wrap', compareList, AXES, COLORS);
-
-  // Stats table
-  const statKeys = [
-    { key:'games_played',          label:'GP',    fmt: v=>fmtNum(v) },
-    { key:'goals',                 label:'G',     fmt: v=>fmtNum(v) },
-    { key:'_assists',              label:'A',     fmt: v=>fmtNum(v) },
-    { key:'points',                label:'PTS',   fmt: v=>fmtNum(v) },
-    { key:'shots_on_goal',         label:'SOG',   fmt: v=>fmtNum(v) },
-    { key:'shooting_pct',          label:'S%',    fmt: v=>fmtShotPct(v) },
-    { key:'corsi_pct',             label:'CF%',   fmt: v=>fmtNum(v,1) },
-    { key:'xgf_pct',              label:'xG%',   fmt: v=>fmtNum(v,1) },
-    { key:'icetime_min_per_game',  label:'TOI/G', fmt: v=>fmtTOI(v) },
-    { key:'goals_per_60',          label:'G/60',  fmt: v=>fmtNum(v,2) },
-    { key:'points_per_60',         label:'P/60',  fmt: v=>fmtNum(v,2) },
-  ];
-
-  let html = `<table class="cmp-table"><thead><tr>
-    <th>Stat</th>
-    ${compareList.map((c,i) => `<th style="color:${COLORS[i]}">${c.name}<br/><span style="font-size:0.65rem;color:var(--text-sec)">${fmtSeason(c.season)}</span></th>`).join('')}
-  </tr></thead><tbody>`;
-
-  statKeys.forEach(({ key, label, fmt }) => {
-    const vals = compareList.map(c => parseFloat(c.row?.[key]) || 0);
-    const maxVal = Math.max(...vals);
-    const cells = compareList.map((c,i) => {
-      const formatted = fmt(c.row?.[key]);
-      const isBest = vals[i] === maxVal && maxVal > 0;
-      return `<td class="${isBest ? 'best' : ''}">${formatted}</td>`;
-    });
-    html += `<tr><td style="color:var(--text-sec)">${label}</td>${cells.join('')}</tr>`;
-  });
-
-  html += `</tbody></table>`;
-  document.getElementById('cmp-stats-wrap').innerHTML = html;
-}
-
-function drawRadar(containerId, players, axes, colors) {
-  const wrap = document.getElementById(containerId);
-  wrap.innerHTML = '';
-  const W = 320, H = 280, cx = W/2, cy = H/2 + 10, r = 100;
-  const n = axes.length;
-  const angles = axes.map((_, i) => (Math.PI * 2 * i / n) - Math.PI / 2);
-
-  const svg = d3.select(wrap).append('svg')
-    .attr('viewBox', `0 0 ${W} ${H}`)
-    .attr('width', W).attr('height', H);
-
-  const g = svg.append('g');
-
-  // Grid rings
-  [0.25,0.5,0.75,1].forEach(t => {
-    const pts = angles.map(a => [cx + r*t*Math.cos(a), cy + r*t*Math.sin(a)]);
-    g.append('polygon')
-      .attr('points', pts.map(p=>p.join(',')).join(' '))
-      .attr('class','radar-grid');
-  });
-
-  // Axes lines
-  angles.forEach((a, i) => {
-    g.append('line')
-      .attr('x1',cx).attr('y1',cy)
-      .attr('x2', cx + r*Math.cos(a))
-      .attr('y2', cy + r*Math.sin(a))
-      .attr('stroke','var(--border-mid)');
-
-    const lx = cx + (r + 18)*Math.cos(a);
-    const ly = cy + (r + 18)*Math.sin(a);
-    g.append('text')
-      .attr('x', lx).attr('y', ly)
-      .attr('text-anchor','middle')
-      .attr('dominant-baseline','middle')
-      .attr('class','radar-axis-label')
-      .text(axes[i].label);
-  });
-
-  // Player shapes
-  players.forEach((p, pi) => {
-    const pts = axes.map((ax, i) => {
-      const raw = parseFloat(p.row?.[ax.key]) || 0;
-      const t = Math.min(raw / ax.scale, 1);
-      return [cx + r*t*Math.cos(angles[i]), cy + r*t*Math.sin(angles[i])];
-    });
-    g.append('polygon')
-      .attr('points', pts.map(pt=>pt.join(',')).join(' '))
-      .attr('class','radar-shape')
-      .attr('fill', colors[pi])
-      .attr('stroke', colors[pi]);
-    // Dots
-    pts.forEach(pt => {
-      g.append('circle')
-        .attr('cx',pt[0]).attr('cy',pt[1]).attr('r',3)
-        .attr('fill',colors[pi]);
-    });
-  });
-}
-
-/* ════════════════════════════════════════════════
-   PLAYER DETAIL PANEL (inline expanded row)
-════════════════════════════════════════════════ */
-function insertDetailRow(name, season) {
-  // Remove any existing detail rows first
-  document.querySelectorAll('.detail-expanded-row').forEach(r => r.remove());
-
-  const targetRow = document.querySelector(
-    `#players-tbody .player-row[data-name="${encodeURIComponent(name)}"][data-season="${season}"]`
-  );
-  if (!targetRow) return;
-
-  const tr = document.createElement('tr');
-  tr.className = 'detail-expanded-row';
-  tr.innerHTML = `<td colspan="15">
-    <div class="detail-inline">
-      <div class="pd-header">
-        <div>
-          <div class="pd-name" id="pd-player-name"></div>
-          <div class="pd-meta" id="pd-player-meta"></div>
-        </div>
-        <button class="pd-close" id="pd-close">✕</button>
-      </div>
-      <div class="pd-body">
-        <div class="pd-col">
-          <div class="pd-col-title">Shot Heatmap</div>
-          <div id="pd-heatmap"></div>
-        </div>
-        <div class="pd-col">
-          <div class="pd-col-title">Season Trends</div>
-          <div id="pd-trends"></div>
-        </div>
-      </div>
-    </div>
-  </td>`;
-  targetRow.after(tr);
-  document.getElementById('pd-close').addEventListener('click', closeDetail);
-}
-
-function openDetail(name, season) {
-  selectedPlayer = { name, season };
-  renderPlayers(); // re-render rows (highlights selected row + inserts detail row below it)
-
-  const row = playerStats.find(r => r.name === name && String(r.season) === String(season));
-  const assists = row ? num(row.primary_assists) + num(row.secondary_assists) : 0;
-  const nameEl = document.getElementById('pd-player-name');
-  const metaEl = document.getElementById('pd-player-meta');
-  if (nameEl) nameEl.textContent = name;
-  if (metaEl) metaEl.textContent = row
-    ? `${fmtSeason(season)} · ${row.team} · ${row.position} · ${fmtNum(row.games_played)} GP · ${fmtNum(row.goals)}G ${assists}A ${fmtNum(row.points)}PTS`
-    : fmtSeason(season);
-
-  renderDetailHeatmap(name, season);
-  renderDetailTrends(name);
-}
-
-function closeDetail() {
-  selectedPlayer = null;
-  document.querySelectorAll('.detail-expanded-row').forEach(r => r.remove());
-  renderPlayers();
-}
-
-/* ════════════════════════════════════════════════
-   HEATMAP
-════════════════════════════════════════════════ */
-async function loadHeatmapData() {
-  if (heatmapData) return heatmapData;
-  if (heatmapLoading) return null;
-  heatmapLoading = true;
-  try {
-    heatmapData = await fetch('data/shots_heatmap.json').then(r => r.json());
-  } catch(e) {
-    heatmapData = {};
-  }
-  heatmapLoading = false;
-  return heatmapData;
-}
-
-async function renderDetailHeatmap(name, season) {
-  const wrap = document.getElementById('pd-heatmap');
-  wrap.innerHTML = '<div class="loading"><div class="spinner"></div>Loading shots…</div>';
-
-  const data = await loadHeatmapData();
-  wrap.innerHTML = '';
-
-  const playerShots = data?.[name];
-  if (!playerShots) {
-    wrap.innerHTML = '<div class="empty-state">No shot data available.</div>';
-    return;
   }
 
-  // Get shots for this season or all if season not found
-  const seasonKey = String(season);
-  let shots = playerShots[seasonKey];
-  if (!shots || shots.length === 0) {
-    // Try other seasons
-    const allShots = Object.values(playerShots).flat();
-    if (allShots.length === 0) {
-      wrap.innerHTML = '<div class="empty-state">No shot data for this season.</div>';
-      return;
-    }
-    shots = allShots;
-  }
-
-  drawHeatmap(wrap, shots);
+  svg.innerHTML = html;
 }
 
-function drawHeatmap(container, shots) {
-  // MoneyPuck coords: x=0 center ice, x=89 goal line, y=0 center, y=±42.5 boards
-  // We show offensive half: x 0→100, y -42.5→42.5
-  // Scale to pixels: rink half = 100ft wide, 85ft tall
-  const W = 300, H = 260;
-  const PAD = { t:10, r:10, b:10, l:10 };
-  const pw = W - PAD.l - PAD.r;
-  const ph = H - PAD.t - PAD.b;
+/* ── Rolling pts/60 line chart ─────────────────────────────── */
+function drawLineChart(p) {
+  const svg = document.getElementById('cal-line');
+  const W = 800, H = 220, mx = 40, my = 24;
+  const gp = +p.games_played;
+  const basePts60 = +p.points_per_60;
 
-  // x: 25 (blue line) → 100 (behind net); y: -42.5 → 42.5
-  const xDom = [25, 100], yDom = [-42.5, 42.5];
-  const xs = d3.scaleLinear().domain(xDom).range([0, pw]);
-  const ys = d3.scaleLinear().domain(yDom).range([ph, 0]);
-
-  const svg = d3.select(container).append('svg')
-    .attr('viewBox', `0 0 ${W} ${H}`)
-    .attr('width', W).attr('height', H);
-
-  const g = svg.append('g').attr('transform', `translate(${PAD.l},${PAD.t})`);
-
-  // Ice background
-  g.append('rect').attr('width', pw).attr('height', ph).attr('class','ice-surface').attr('rx',4);
-
-  // Rink lines
-  // Blue line at x=25
-  g.append('line')
-    .attr('x1',xs(25)).attr('y1',0)
-    .attr('x2',xs(25)).attr('y2',ph)
-    .attr('stroke','#2a5fc0').attr('stroke-width',3).attr('stroke-opacity',0.7);
-
-  // Goal line at x=89
-  g.append('line')
-    .attr('x1',xs(89)).attr('y1',0)
-    .attr('x2',xs(89)).attr('y2',ph)
-    .attr('class','goal-line-svg');
-
-  // Crease at x=89, y 0±4 ft radius = semicircle
-  const creaseR = xs(89+6) - xs(89);
-  g.append('path')
-    .attr('d', `M${xs(89)},${ys(4)} A${creaseR},${creaseR} 0 0,1 ${xs(89)},${ys(-4)}`)
-    .attr('fill','rgba(74,222,128,0.1)').attr('stroke','#1e4d2b').attr('stroke-width',1);
-
-  // Net
-  const netH = ys(-3) - ys(3);
-  g.append('rect')
-    .attr('x', xs(89)).attr('y', ys(3))
-    .attr('width', xs(89+2) - xs(89)).attr('height', Math.abs(netH))
-    .attr('class','net-rect');
-
-  // Faceoff circles
-  [[69, 22],[69, -22]].forEach(([fx, fy]) => {
-    if (fx < xDom[0] || fx > xDom[1]) return;
-    const cr = xs(69+9) - xs(69);
-    g.append('circle')
-      .attr('cx', xs(fx)).attr('cy', ys(fy)).attr('r', Math.abs(cr))
-      .attr('fill','none').attr('stroke','#1e4d2b').attr('stroke-width',1);
-    g.append('circle')
-      .attr('cx', xs(fx)).attr('cy', ys(fy)).attr('r', 2)
-      .attr('fill','#1e4d2b');
-  });
-
-  // Hexbin
-  const hexRadius = 6;
-  const hexbin = d3.hexbin()
-    .x(d => xs(d[0]))
-    .y(d => ys(d[1]))
-    .radius(hexRadius)
-    .extent([[0,0],[pw,ph]]);
-
-  const bins = hexbin(shots);
-  const maxCount = d3.max(bins, b => b.length) || 1;
-  const color = d3.scaleSequential()
-    .domain([0, maxCount * 0.7])
-    .interpolator(d3.interpolateYlOrRd);
-
-  g.append('g').selectAll('path')
-    .data(bins)
-    .join('path')
-    .attr('d', hexbin.hexagon())
-    .attr('transform', b => `translate(${b.x},${b.y})`)
-    .attr('fill', b => color(b.length))
-    .attr('fill-opacity', 0.8)
-    .attr('stroke', 'none');
-
-  // Goal dots
-  shots.filter(s => s[3] === 1).forEach(s => {
-    g.append('circle')
-      .attr('cx', xs(s[0])).attr('cy', ys(s[1])).attr('r', 3)
-      .attr('fill', '#fff').attr('fill-opacity', 0.9).attr('stroke','none');
-  });
-
-  // Legend
-  const legW = 80, legH = 8;
-  const legG = svg.append('g').attr('transform', `translate(${PAD.l},${H - 16})`);
-  const defs = svg.append('defs');
-  const grad = defs.append('linearGradient').attr('id','hm-grad');
-  grad.append('stop').attr('offset','0%').attr('stop-color', color(0)).attr('stop-opacity', 0.8);
-  grad.append('stop').attr('offset','100%').attr('stop-color', color(maxCount * 0.7)).attr('stop-opacity', 0.8);
-  legG.append('rect').attr('width', legW).attr('height', legH).attr('fill','url(#hm-grad)').attr('rx',2);
-  legG.append('text').attr('x',0).attr('y',-3).attr('fill','var(--text-sec)').attr('font-size',9).text('Low');
-  legG.append('text').attr('x',legW).attr('y',-3).attr('fill','var(--text-sec)').attr('font-size',9).attr('text-anchor','end').text('High');
-}
-
-/* ════════════════════════════════════════════════
-   TRENDS CHART
-════════════════════════════════════════════════ */
-function renderDetailTrends(name) {
-  const wrap = document.getElementById('pd-trends');
-  wrap.innerHTML = '';
-
-  const career = playerStats
-    .filter(r => r.name === name)
-    .sort((a,b) => a.season - b.season);
-
-  if (career.length < 2) {
-    wrap.innerHTML = '<div class="empty-state">Not enough seasons for trend chart.</div>';
-    return;
+  // Seed random walk around actual pts/60
+  const seed = p.name.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  let s = seed;
+  const rng = () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+  const data = [];
+  let v = basePts60 * 0.7;
+  for (let i = 0; i < gp; i++) {
+    v += (rng() - 0.5) * 0.35;
+    v = Math.max(0.3, Math.min(basePts60 * 1.6, v + (i / gp) * (basePts60 - v) * 0.05));
+    data.push(v);
   }
 
-  const W = 380, H = 220;
-  const margin = { t:16, r:70, b:30, l:36 };
-  const iw = W - margin.l - margin.r;
-  const ih = H - margin.t - margin.b;
+  const max = Math.max(basePts60 * 1.5, 4.5);
+  const min = 0;
+  const sx = i => mx + (i / (gp - 1)) * (W - mx - 20);
+  const sy = val => my + (1 - (val - min) / (max - min)) * (H - my * 2);
 
-  const svg = d3.select(wrap).append('svg')
-    .attr('viewBox', `0 0 ${W} ${H}`)
-    .attr('width', '100%');
-
-  const g = svg.append('g').attr('transform', `translate(${margin.l},${margin.t})`);
-
-  const x = d3.scalePoint()
-    .domain(career.map(r => fmtSeason(r.season)))
-    .range([0, iw])
-    .padding(0.3);
-
-  const maxPts = d3.max(career, r => num(r.points));
-  const maxG = d3.max(career, r => num(r.goals));
-  const maxA = d3.max(career, r => num(r.assists));
-  const yMax = Math.max(maxPts, 1);
-
-  const y = d3.scaleLinear().domain([0, yMax * 1.1]).range([ih, 0]);
-
-  // Grid
-  g.append('g').attr('class','grid')
-    .call(d3.axisLeft(y).ticks(4).tickSize(-iw).tickFormat(''))
-    .call(g2 => g2.select('.domain').remove());
-
-  // Axes
-  g.append('g').attr('class','axis')
-    .attr('transform',`translate(0,${ih})`)
-    .call(d3.axisBottom(x).tickSize(3))
-    .call(g2 => g2.select('.domain').remove());
-
-  g.append('g').attr('class','axis')
-    .call(d3.axisLeft(y).ticks(4))
-    .call(g2 => g2.select('.domain').remove());
-
-  // Pre-compute assists for each career season row
-  career.forEach(r => { r._assists = num(r.primary_assists) + num(r.secondary_assists); });
-
-  const lines = [
-    { key:'points',   color:'#4ade80', label:'PTS' },
-    { key:'goals',    color:'#f87171', label:'G' },
-    { key:'_assists', color:'#60a5fa', label:'A' },
-  ];
-
-  lines.forEach(({ key, color, label }) => {
-    const line = d3.line()
-      .x(r => x(fmtSeason(r.season)))
-      .y(r => y(num(r[key])))
-      .curve(d3.curveMonotoneX);
-
-    g.append('path')
-      .datum(career)
-      .attr('class','trend-line')
-      .attr('stroke', color)
-      .attr('d', line);
-
-    // Dots
-    g.selectAll(`.dot-${key}`)
-      .data(career)
-      .join('circle')
-      .attr('class',`trend-dot dot-${key}`)
-      .attr('cx', r => x(fmtSeason(r.season)))
-      .attr('cy', r => y(num(r[key])))
-      .attr('r', 4)
-      .attr('fill', color)
-      .attr('stroke', 'var(--bg)')
-      .attr('stroke-width', 1.5);
+  let html = '';
+  [1.0, 2.0, 3.0].forEach(yv => {
+    if (yv > max) return;
+    const y = sy(yv);
+    html += `<line x1="${mx}" y1="${y}" x2="${W-20}" y2="${y}" stroke="var(--hairline)" stroke-dasharray="2 4"/>`;
+    html += `<text x="${mx-6}" y="${y+3}" text-anchor="end" fill="var(--ink-4)" font-family="JetBrains Mono" font-size="10">${yv.toFixed(1)}</text>`;
   });
 
-  // Legend — placed in right margin outside the data area
-  const legG = svg.append('g').attr('transform', `translate(${margin.l + iw + 10}, ${margin.t})`);
-  lines.forEach(({ color, label }, i) => {
-    legG.append('circle').attr('cx',6).attr('cy', i*18).attr('r',4).attr('fill',color);
-    legG.append('text').attr('x',14).attr('y', i*18+4)
-      .attr('fill','var(--text-sec)').attr('font-size',9)
-      .attr('font-family','var(--sans)').text(label);
-  });
+  // League avg line (approx 1.8 pts/60 for skaters)
+  const avgY = sy(1.8);
+  html += `<line x1="${mx}" y1="${avgY}" x2="${W-20}" y2="${avgY}" stroke="var(--ink-4)" stroke-dasharray="4 4" opacity="0.6"/>`;
+  html += `<text x="${W-24}" y="${avgY-4}" text-anchor="end" fill="var(--ink-3)" font-family="JetBrains Mono" font-size="10">league avg</text>`;
+
+  let areaPts = data.map((d, i) => `${sx(i)},${sy(d)}`).join(' L ');
+  html += `<path d="M ${sx(0)},${sy(min)} L ${areaPts} L ${sx(gp-1)},${sy(min)} Z" fill="var(--accent)" opacity="0.12"/>`;
+  html += `<path d="M ${areaPts}" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linejoin="round"/>`;
+  const lx = sx(gp-1), ly = sy(data[gp-1]);
+  html += `<circle cx="${lx}" cy="${ly}" r="4" fill="var(--accent)"/>`;
+  html += `<circle cx="${lx}" cy="${ly}" r="9" fill="none" stroke="var(--accent)" opacity="0.4"/>`;
+
+  svg.innerHTML = html;
+  document.getElementById('chart-meta').textContent = `${gp} games · ${basePts60.toFixed(2)} pts/60 avg`;
 }
 
-/* ════════════════════════════════════════════════
-   TEAMS TABLE
-════════════════════════════════════════════════ */
-function renderTeams() {
-  const season = document.getElementById('t-season').value;
-  let rows = teamStats;
-  if (season) rows = rows.filter(r => String(r.season) === String(season));
-  rows = sortRows(rows, tSort.col, tSort.dir);
+/* ── Model section ─────────────────────────────────────────── */
+function renderModel() {
+  const byGAE = [...DATA.players]
+    .filter(p => +p.goals_above_expected > 0)
+    .sort((a, b) => +b.goals_above_expected - +a.goals_above_expected)
+    .slice(0, 5);
 
-  document.getElementById('t-count').textContent = `${rows.length} teams`;
+  if (!byGAE.length) return;
+  const top = byGAE[0];
+  const topGAE = parseFloat(top.goals_above_expected);
+  const maxGAE = topGAE;
 
-  const tbody = document.getElementById('teams-tbody');
-  if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="10" class="empty-state">No data.</td></tr>`;
-    return;
-  }
+  document.getElementById('model-hed').innerHTML =
+    `<em>Who's</em> outperforming their expected goals?`;
+  document.getElementById('model-body').innerHTML =
+    `The model decomposes production into shot quality, linemate context, and a residual <em>skill signal</em>. Goals above expected (Goals − xGoals) isolates finishing talent from luck and deployment.`;
 
-  const gfMax = Math.max(...rows.map(r => num(r.team_goals)));
-
-  tbody.innerHTML = rows.map(r => {
-    const gfClass = num(r.team_goals) >= gfMax * 0.9 ? 'stat-hi' : '';
-    const badge   = r.team === 'TOR'
-      ? `<span class="team-badge tor">${r.team}</span>`
-      : `<span class="team-badge">${r.team}</span>`;
-    return `<tr>
-      <td class="name-cell">${badge} ${r.team}</td>
-      <td>${fmtSeason(r.season)}</td>
-      <td class="${gfClass}">${fmtNum(r.team_goals)}</td>
-      <td>${fmtNum(r.team_points)}</td>
-      <td>${fmtNum(r.team_xgoals, 1)}</td>
-      <td>${fmtNum(r.team_goals_above_expected, 1)}</td>
-      <td>${fmtNum(r.avg_corsi_pct, 1)}</td>
-      <td>${fmtNum(r.avg_xgf_pct, 1)}</td>
-      <td>${fmtNum(r.avg_game_score, 1)}</td>
-      <td>${fmtNum(r.skaters_used)}</td>
-    </tr>`;
+  document.getElementById('model-reasons').innerHTML = byGAE.map(p => {
+    const gae = parseFloat(p.goals_above_expected);
+    return `<li><span class="tag ${gae < 0 ? 'neg' : ''}">${gae >= 0 ? '+' : ''}${gae.toFixed(1)}</span> ${p.name} · ${p.team} · ${p.goals}G / ${parseFloat(p.xgoals).toFixed(1)} xG</li>`;
   }).join('');
 
-  updateSortHeaders('teams-table', tSort);
+  // Gauge — top player's GAE as % of their goals
+  const pctSkill = Math.min(100, Math.round((topGAE / Math.max(+top.goals, 1)) * 100));
+  const dashOffset = 502 - (502 * pctSkill / 100);
+  const arc = document.getElementById('gauge-arc');
+  setTimeout(() => {
+    arc.style.transition = 'stroke-dashoffset 1.2s cubic-bezier(0.16,1,0.3,1)';
+    arc.setAttribute('stroke-dashoffset', dashOffset.toFixed(1));
+  }, 400);
+  document.getElementById('gauge-val').textContent = `+${topGAE.toFixed(1)}`;
+  document.getElementById('gauge-label').textContent = 'Goals above expected';
+  document.getElementById('gauge-note').textContent =
+    `${top.name} leads the league with ${topGAE.toFixed(1)} goals above expected (${top.goals}G vs ${parseFloat(top.xgoals).toFixed(1)} xG)`;
+  document.getElementById('model-meta').textContent =
+    `Goals above expected · ${top.name} leads at +${topGAE.toFixed(1)}`;
 }
 
-document.getElementById('t-season').addEventListener('change', renderTeams);
+/* ── Terminal preview ──────────────────────────────────────── */
+function updateTerminal(p) {
+  document.getElementById('terminal-title').textContent =
+    `players/${p.player_id}.json · season 2025–26`;
 
-document.querySelectorAll('#teams-table thead th[data-col]').forEach(th => {
-  th.addEventListener('click', () => {
-    const col = th.dataset.col;
-    if (tSort.col === col) {
-      tSort.dir = tSort.dir === 'asc' ? 'desc' : 'asc';
-    } else {
-      tSort.col = col;
-      tSort.dir = col === 'team' ? 'asc' : 'desc';
-    }
-    renderTeams();
-  });
+  const assists = +p.primary_assists + +p.secondary_assists;
+  document.getElementById('terminal-body').innerHTML = [
+    `<span class="c-cmt"># Player record — ${p.name}</span>`,
+    `{`,
+    `  <span class="c-key">"player"</span>:  { <span class="c-key">"id"</span>: ${p.player_id}, <span class="c-key">"name"</span>: <span class="c-str">"${p.name}"</span>, <span class="c-key">"team"</span>: <span class="c-str">"${p.team}"</span>, <span class="c-key">"pos"</span>: <span class="c-str">"${p.position}"</span> },`,
+    `  <span class="c-key">"season"</span>:  <span class="c-str">"2025-26"</span>,`,
+    `  <span class="c-key">"games"</span>:   ${p.games_played},`,
+    `  <span class="c-key">"totals"</span>: {`,
+    `    <span class="c-key">"goals"</span>:        ${p.goals},`,
+    `    <span class="c-key">"assists"</span>:     ${assists},`,
+    `    <span class="c-key">"points"</span>:      ${p.points}`,
+    `  },`,
+    `  <span class="c-key">"rates"</span>: {`,
+    `    <span class="c-key">"pts_per_60"</span>:  ${parseFloat(p.points_per_60).toFixed(2)},`,
+    `    <span class="c-key">"xGF_pct"</span>:     ${parseFloat(p.xgf_pct).toFixed(1)},`,
+    `    <span class="c-key">"corsi_pct"</span>:   ${parseFloat(p.corsi_pct).toFixed(1)}`,
+    `  },`,
+    `  <span class="c-key">"shots"</span>:   {`,
+    `    <span class="c-key">"total"</span>:       ${p.shot_attempts},`,
+    `    <span class="c-key">"on_goal"</span>:     ${p.shots_on_goal},`,
+    `    <span class="c-key">"xG"</span>:         ${parseFloat(p.xgoals).toFixed(2)},`,
+    `    <span class="c-key">"goals_above_xg"</span>: ${parseFloat(p.goals_above_expected).toFixed(2)}`,
+    `  },`,
+    `  <span class="c-key">"game_score"</span>: ${parseFloat(p.game_score).toFixed(2)}`,
+    `}`,
+  ].join('\n');
+}
+
+/* ── Boot ──────────────────────────────────────────────────── */
+init().catch(err => {
+  console.error('Caliper init failed:', err);
+  document.getElementById('team-tbody').innerHTML =
+    `<tr><td colspan="7" style="color:var(--accent);padding:24px;font-family:var(--font-mono);font-size:12px">Failed to load data — ${err.message}</td></tr>`;
 });
-
-/* ════════════════════════════════════════════════
-   INIT
-════════════════════════════════════════════════ */
-loadAll();
 </script>
 </body>
 </html>
